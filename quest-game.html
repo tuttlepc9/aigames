@@ -1,0 +1,747 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Quest of the Lost Kingdom</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body,html{width:100%;height:100%;overflow:hidden;background:#0a0a0a;font-family:Arial,sans-serif}
+#game{display:block;position:fixed;top:0;left:0;background:#0a0a0a;image-rendering:pixelated;z-index:1}
+#debug{position:fixed;top:8px;left:8px;color:#0f0;font:12px monospace;background:rgba(0,0,0,0.9);padding:6px 10px;border-radius:4px;border:1px solid #0f0;pointer-events:none;z-index:100}
+#ui{position:fixed;top:8px;right:8px;color:#fff;font:14px Arial;background:linear-gradient(135deg,rgba(20,20,30,0.95),rgba(30,30,40,0.95));padding:16px;border-radius:12px;min-width:220px;max-width:300px;border:3px solid #f90;box-shadow:0 0 20px rgba(255,153,0,0.4);z-index:100}
+#ui h3{margin:0 0 12px 0;color:#f90;font-size:18px;text-shadow:0 0 10px rgba(255,153,0,0.8);border-bottom:2px solid #f90;padding-bottom:6px}
+#ui .quest{margin:8px 0;padding:10px;background:rgba(40,40,50,0.8);border-radius:6px;border-left:4px solid #f90;transition:all 0.2s}
+#ui .quest:hover{background:rgba(50,50,60,0.9);transform:translateX(-4px)}
+#ui .quest.complete{border-left-color:#0f0;background:rgba(0,50,0,0.6)}
+#ui .item{display:inline-block;margin:4px;padding:6px 10px;background:linear-gradient(135deg,rgba(80,80,150,0.7),rgba(60,60,120,0.7));border-radius:6px;font-size:12px;border:2px solid rgba(100,100,200,0.6)}
+#dialogue{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);width:600px;max-width:90%;background:linear-gradient(135deg,rgba(10,10,20,0.98),rgba(20,20,30,0.98));border:4px solid #f90;border-radius:16px;padding:24px;color:#fff;display:none;box-shadow:0 0 40px rgba(255,153,0,0.6);z-index:200}
+#dialogue .npc-name{color:#ff0;font-weight:bold;font-size:20px;margin-bottom:12px;text-shadow:0 0 10px rgba(255,255,0,0.8);border-bottom:2px solid rgba(255,153,0,0.5);padding-bottom:8px}
+#dialogue .text{margin:16px 0;line-height:1.8;font-size:15px;color:#eee}
+#dialogue .choices{margin-top:20px}
+#dialogue .choice{display:block;margin:10px 0;padding:14px 20px;background:linear-gradient(135deg,rgba(255,153,0,0.4),rgba(255,120,0,0.4));border:3px solid #f90;border-radius:8px;cursor:pointer;transition:all 0.3s;font-weight:bold}
+#dialogue .choice:hover{background:linear-gradient(135deg,rgba(255,153,0,0.7),rgba(255,120,0,0.7));transform:translateX(8px) scale(1.02)}
+#endgame{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:550px;max-width:90%;background:linear-gradient(135deg,rgba(40,20,60,0.98),rgba(60,30,80,0.98));border:5px solid #ff0;border-radius:20px;padding:40px;color:#fff;display:none;text-align:center;box-shadow:0 0 80px rgba(255,215,0,0.9);z-index:300}
+#endgame h1{margin:0 0 20px 0;color:#ffd700;text-shadow:0 0 20px rgba(255,215,0,1);font-size:36px}
+#endgame p{margin:16px 0;font-size:17px;line-height:1.8;color:#ffe}
+#endgame .btn{margin-top:24px;padding:14px 40px;background:linear-gradient(135deg,#ffd700,#ffed4e);border:4px solid #ff0;border-radius:12px;font-size:18px;font-weight:bold;cursor:pointer;color:#000;transition:all 0.3s}
+#endgame .btn:hover{transform:scale(1.1)}
+#help{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:400px;max-width:90%;background:rgba(0,0,0,0.95);border:3px solid #f90;border-radius:12px;padding:24px;color:#fff;display:none;z-index:250}
+#help h2{margin:0 0 16px 0;color:#f90;text-align:center}
+#help .control{margin:12px 0;padding:8px;background:rgba(255,153,0,0.2);border-radius:4px}
+#help .control strong{color:#ff0}
+#help .close{margin-top:16px;padding:10px;background:#f90;border:none;border-radius:6px;color:#000;font-weight:bold;cursor:pointer;width:100%}
+#help-btn{position:fixed;top:50%;right:8px;transform:translateY(-50%);background:rgba(255,153,0,0.8);border:2px solid #f90;color:#000;padding:8px 12px;border-radius:6px;cursor:pointer;font-weight:bold;font-size:18px;z-index:100}
+#notification{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:linear-gradient(135deg,rgba(0,180,0,0.95),rgba(0,220,0,0.95));border:4px solid #0f0;border-radius:16px;padding:24px 40px;color:#fff;display:none;text-align:center;box-shadow:0 0 40px rgba(0,255,0,0.8);z-index:250}
+#notification h3{margin:0;font-size:24px;text-shadow:0 0 10px rgba(0,255,0,1)}
+#minimap{position:fixed;bottom:8px;left:8px;width:200px;height:200px;background:rgba(0,0,0,0.85);border:3px solid #f90;border-radius:8px;box-shadow:0 0 20px rgba(255,153,0,0.4);z-index:100}
+#minimap canvas{width:100%;height:100%;border-radius:5px}
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<div id="debug"></div>
+<button id="help-btn" onclick="document.getElementById('help').style.display='block'">?</button>
+<div id="notification"><h3 id="notif-text">Quest Complete!</h3></div>
+<div id="help">
+<h2>⚔️ Quest of the Lost Kingdom ⚔️</h2>
+<div class="control" style="background:rgba(255,215,0,0.2);border-left:3px solid #ffd700;padding:12px">
+<strong>Welcome, Hero!</strong><br>
+The kingdom needs your help. Complete all quests to restore peace and light to the realm!
+</div>
+<div class="control"><strong>WASD / Arrow Keys:</strong> Move your character</div>
+<div class="control"><strong>E:</strong> Interact with NPCs</div>
+<div class="control"><strong>💡 Tips:</strong> Look for <span style="color:#ff0;font-weight:bold">!</span> markers above NPCs with quests. Walk over glowing items to collect them. Check your minimap (bottom-left) to navigate!</div>
+<button class="close" onclick="document.getElementById('help').style.display='none'">Start Adventure!</button>
+</div>
+<div id="minimap"><canvas id="minimapCanvas"></canvas></div>
+<div id="ui">
+<h3>⚔️ Quests</h3>
+<div id="quest-list"></div>
+<h3 style="margin-top:16px">🎒 Inventory</h3>
+<div id="inventory"></div>
+</div>
+<div id="dialogue">
+<div class="npc-name"></div>
+<div class="text"></div>
+<div class="choices"></div>
+</div>
+<div id="endgame">
+<h1>🎉 The Kingdom is Saved! 🎉</h1>
+<p id="end-text"></p>
+<button class="btn" onclick="location.reload()">Play Again</button>
+</div>
+<script>
+const CONFIG={tileSize:32,mapCols:200,mapRows:200,viewWidth:0,viewHeight:0,targetFPS:60,fixedStep:1/60};
+const KEYS={};
+const MOUSE={x:0,y:0,btn:0};
+const GAME={quests:[],inventory:[],currentDialogue:null,gameComplete:false};
+const QUEST_DATA=[
+{id:'find_sword',title:'The Lost Sword',description:'Find the legendary sword for Elder Marcus',npc:'Marcus',requiredItem:'legendary_sword',reward:'ancient_map',complete:false},
+{id:'collect_herbs',title:'Healing Herbs',description:'Collect 3 magical herbs for Healer Emma',npc:'Emma',requiredItem:'herbs_3',reward:'healing_potion',complete:false},
+{id:'find_crystal',title:'The Sacred Crystal',description:'Retrieve the Sacred Crystal to restore the kingdom',npc:'King',requiredItem:'sacred_crystal',reward:null,complete:false}
+];
+const ITEM_SPAWNS=[
+{id:'legendary_sword',x:150,y:50,name:'⚔️ Legendary Sword',spawned:true},
+{id:'herb',x:180,y:120,name:'🌿 Magical Herb',spawned:true},
+{id:'herb',x:30,y:170,name:'🌿 Magical Herb',spawned:true},
+{id:'herb',x:90,y:80,name:'🌿 Magical Herb',spawned:true},
+{id:'sacred_crystal',x:100,y:100,name:'💎 Sacred Crystal',spawned:false}
+];
+
+class Engine{
+constructor(){
+this.canvas=document.getElementById('game');
+this.ctx=this.canvas.getContext('2d',{alpha:false});
+this.debugEl=document.getElementById('debug');
+this.minimapCanvas=document.getElementById('minimapCanvas');
+this.minimapCtx=this.minimapCanvas.getContext('2d');
+this.minimapCanvas.width=200;
+this.minimapCanvas.height=200;
+this.lastTime=0;
+this.accum=0;
+this.entities=[];
+this.items=[];
+this.particles=[];
+this.camera={x:0,y:0};
+this.map=null;
+this.resize();
+this.ctx.fillStyle='#0a0a0a';
+this.ctx.fillRect(0,0,this.canvas.width,this.canvas.height);
+this.ctx.fillStyle='#f90';
+this.ctx.font='24px Arial';
+this.ctx.textAlign='center';
+this.ctx.fillText('Loading...',this.canvas.width/2,this.canvas.height/2);
+window.addEventListener('resize',()=>this.resize());
+this.setupInput();
+this.initWorld();
+requestAnimationFrame(t=>this.loop(t));
+}
+
+resize(){
+this.canvas.width=window.innerWidth;
+this.canvas.height=window.innerHeight;
+CONFIG.viewWidth=this.canvas.width;
+CONFIG.viewHeight=this.canvas.height;
+this.ctx.fillStyle='#0a0a0a';
+this.ctx.fillRect(0,0,this.canvas.width,this.canvas.height);
+}
+
+setupInput(){
+window.addEventListener('keydown',e=>{
+KEYS[e.key.toLowerCase()]=true;
+if(e.key.toLowerCase()==='e')this.tryInteract();
+});
+window.addEventListener('keyup',e=>{KEYS[e.key.toLowerCase()]=false;});
+this.canvas.addEventListener('mousemove',e=>{
+const r=this.canvas.getBoundingClientRect();
+MOUSE.x=e.clientX-r.left;
+MOUSE.y=e.clientY-r.top;
+});
+this.canvas.addEventListener('mousedown',e=>MOUSE.btn|=1<<e.button);
+this.canvas.addEventListener('mouseup',e=>MOUSE.btn&=~(1<<e.button));
+this.canvas.addEventListener('contextmenu',e=>e.preventDefault());
+}
+
+initWorld(){
+this.map=new TileMap();
+GAME.quests=QUEST_DATA.map(q=>({...q}));
+ITEM_SPAWNS.forEach(spawn=>{
+if(spawn.spawned)this.items.push(new Item(spawn));
+});
+const npcData=[
+{name:'Marcus',x:100,y:50,color:'#f44',quest:'find_sword',dialogue:'Greetings, traveler! I am Elder Marcus. Long ago, I wielded a legendary sword that could cut through any darkness. I lost it during a great battle. If you find it, bring it to me!'},
+{name:'Emma',x:50,y:150,color:'#4f4',quest:'collect_herbs',dialogue:'Hello! I am Emma, the village healer. I need 3 magical herbs to brew a powerful healing potion. They grow in remote areas. Can you help me gather them?'},
+{name:'King',x:100,y:100,color:'#ff0',quest:'find_crystal',dialogue:'Welcome, brave hero! I am the King of this realm. Our kingdom has fallen into shadow. Only the Sacred Crystal can restore light to our land. Help us find it!'},
+{name:'Villager',x:120,y:130,color:'#8af',quest:null,dialogue:'Thanks for helping our kingdom! The darkness has been hard on all of us.'}
+];
+npcData.forEach(data=>{
+this.entities.push(new NPC(data.x*CONFIG.tileSize,data.y*CONFIG.tileSize,data.name,data.color,data.quest,data.dialogue));
+});
+this.player=new Player(CONFIG.mapCols*CONFIG.tileSize/2,CONFIG.mapRows*CONFIG.tileSize/2);
+this.entities.push(this.player);
+this.updateUI();
+setTimeout(()=>{document.getElementById('help').style.display='block';},500);
+}
+
+loop(time){
+requestAnimationFrame(t=>this.loop(t));
+const dt=Math.min((time-this.lastTime)/1000,0.1);
+this.lastTime=time;
+this.accum+=dt;
+while(this.accum>=CONFIG.fixedStep){
+this.update(CONFIG.fixedStep);
+this.accum-=CONFIG.fixedStep;
+}
+this.render();
+}
+
+update(dt){
+if(GAME.gameComplete||!this.map)return;
+for(const e of this.entities)e.update(dt,this);
+for(const item of this.items)item.update(dt,this);
+for(let i=this.particles.length-1;i>=0;i--){
+this.particles[i].update(dt);
+if(this.particles[i].life<=0)this.particles.splice(i,1);
+}
+if(Math.random()<0.3*dt)this.spawnAmbientParticle();
+this.cameraFollow(this.player);
+this.checkItemPickup();
+this.updateDebug();
+}
+
+render(){
+this.ctx.fillStyle='#0a0a0a';
+this.ctx.fillRect(0,0,this.canvas.width,this.canvas.height);
+if(!this.map){
+this.ctx.fillStyle='#f90';
+this.ctx.font='24px Arial';
+this.ctx.textAlign='center';
+this.ctx.fillText('Initializing world...',this.canvas.width/2,this.canvas.height/2);
+return;
+}
+this.ctx.save();
+this.ctx.translate(-this.camera.x,-this.camera.y);
+this.map.render(this.ctx,this.camera);
+for(const p of this.particles)p.render(this.ctx);
+for(const item of this.items)item.render(this.ctx);
+const sortedEntities=[...this.entities].sort((a,b)=>a.y-b.y);
+for(const e of sortedEntities)e.render(this.ctx);
+this.renderInteractionHints();
+this.ctx.restore();
+this.renderMinimap();
+const gradient=this.ctx.createRadialGradient(this.canvas.width/2,this.canvas.height/2,this.canvas.height/3,this.canvas.width/2,this.canvas.height/2,this.canvas.height);
+gradient.addColorStop(0,'rgba(0,0,0,0)');
+gradient.addColorStop(1,'rgba(0,0,0,0.4)');
+this.ctx.fillStyle=gradient;
+this.ctx.fillRect(0,0,this.canvas.width,this.canvas.height);
+}
+
+renderInteractionHints(){
+const nearNPC=this.getNearbyNPC();
+if(nearNPC){
+this.ctx.fillStyle='#ff0';
+this.ctx.font='bold 14px Arial';
+this.ctx.textAlign='center';
+this.ctx.strokeStyle='#000';
+this.ctx.lineWidth=3;
+const text='Press E to talk';
+this.ctx.strokeText(text,nearNPC.x,nearNPC.y-40);
+this.ctx.fillText(text,nearNPC.x,nearNPC.y-40);
+}
+}
+
+renderMinimap(){
+if(!this.map||!this.player)return;
+const mctx=this.minimapCtx;
+const mw=this.minimapCanvas.width;
+const mh=this.minimapCanvas.height;
+mctx.fillStyle='#000';
+mctx.fillRect(0,0,mw,mh);
+const scaleX=mw/(CONFIG.mapCols*CONFIG.tileSize);
+const scaleY=mh/(CONFIG.mapRows*CONFIG.tileSize);
+const tileScale=CONFIG.tileSize;
+for(let y=0;y<CONFIG.mapRows;y+=4){
+for(let x=0;x<CONFIG.mapCols;x+=4){
+const tile=this.map.getTile(x*tileScale,y*tileScale);
+if(tile===1){
+mctx.fillStyle='#36b';
+mctx.fillRect(x*scaleX*tileScale,y*scaleY*tileScale,4*scaleX*tileScale,4*scaleY*tileScale);
+}
+}
+}
+mctx.fillStyle='#ff0';
+for(const item of this.items){
+mctx.fillRect(item.x*scaleX-2,item.y*scaleY-2,4,4);
+}
+for(const e of this.entities){
+if(e instanceof NPC){
+const quest=GAME.quests.find(q=>q.npc===e.name);
+mctx.fillStyle=(quest&&!quest.complete)?'#f90':'#888';
+mctx.fillRect(e.x*scaleX-2,e.y*scaleY-2,4,4);
+}
+}
+mctx.fillStyle='#0f0';
+mctx.fillRect(this.player.x*scaleX-3,this.player.y*scaleY-3,6,6);
+mctx.strokeStyle='#fff';
+mctx.lineWidth=1;
+mctx.strokeRect(this.camera.x*scaleX,this.camera.y*scaleY,CONFIG.viewWidth*scaleX,CONFIG.viewHeight*scaleY);
+}
+
+spawnAmbientParticle(){
+const px=this.camera.x+Math.random()*CONFIG.viewWidth;
+const py=this.camera.y+Math.random()*CONFIG.viewHeight;
+this.particles.push(new Particle(px,py));
+}
+
+getNearbyNPC(){
+for(const e of this.entities){
+if(e instanceof NPC){
+const dist=Math.hypot(this.player.x-e.x,this.player.y-e.y);
+if(dist<50)return e;
+}
+}
+return null;
+}
+
+tryInteract(){
+const npc=this.getNearbyNPC();
+if(npc)this.showDialogue(npc);
+}
+
+showDialogue(npc){
+const dialogueEl=document.getElementById('dialogue');
+const nameEl=dialogueEl.querySelector('.npc-name');
+const textEl=dialogueEl.querySelector('.text');
+const choicesEl=dialogueEl.querySelector('.choices');
+nameEl.textContent=npc.name;
+choicesEl.innerHTML='';
+const quest=GAME.quests.find(q=>q.npc===npc.name);
+if(quest&&!quest.complete){
+if(this.hasRequiredItem(quest)){
+textEl.textContent=`You have the ${quest.requiredItem.replace('_',' ')}! Thank you, hero!`;
+const btn=document.createElement('div');
+btn.className='choice';
+btn.textContent=`✓ Complete Quest: ${quest.title}`;
+btn.onclick=()=>{
+this.completeQuest(quest);
+dialogueEl.style.display='none';
+};
+choicesEl.appendChild(btn);
+}else{
+textEl.textContent=npc.dialogue;
+const btn=document.createElement('div');
+btn.className='choice';
+btn.textContent='I\'ll help you!';
+btn.onclick=()=>{dialogueEl.style.display='none';};
+choicesEl.appendChild(btn);
+}
+}else if(quest&&quest.complete){
+textEl.textContent='Thank you for your help, brave hero! May fortune smile upon you.';
+const btn=document.createElement('div');
+btn.className='choice';
+btn.textContent='Goodbye';
+btn.onclick=()=>{dialogueEl.style.display='none';};
+choicesEl.appendChild(btn);
+}else{
+textEl.textContent=npc.dialogue;
+const btn=document.createElement('div');
+btn.className='choice';
+btn.textContent='Farewell';
+btn.onclick=()=>{dialogueEl.style.display='none';};
+choicesEl.appendChild(btn);
+}
+dialogueEl.style.display='block';
+}
+
+hasRequiredItem(quest){
+if(quest.requiredItem==='herbs_3'){
+return GAME.inventory.filter(i=>i==='herb').length>=3;
+}
+return GAME.inventory.includes(quest.requiredItem);
+}
+
+completeQuest(quest){
+quest.complete=true;
+if(quest.requiredItem==='herbs_3'){
+for(let i=0;i<3;i++){
+const idx=GAME.inventory.indexOf('herb');
+if(idx>-1)GAME.inventory.splice(idx,1);
+}
+}else{
+const idx=GAME.inventory.indexOf(quest.requiredItem);
+if(idx>-1)GAME.inventory.splice(idx,1);
+}
+if(quest.reward){
+GAME.inventory.push(quest.reward);
+if(quest.reward==='ancient_map'){
+const crystalSpawn=ITEM_SPAWNS.find(s=>s.id==='sacred_crystal');
+if(crystalSpawn){
+crystalSpawn.spawned=true;
+this.items.push(new Item(crystalSpawn));
+}
+}
+}
+const notif=document.getElementById('notification');
+const notifText=document.getElementById('notif-text');
+notifText.textContent=`✓ Quest Complete: ${quest.title}!`;
+notif.style.display='block';
+for(let i=0;i<30;i++){
+this.particles.push(new Particle(this.player.x,this.player.y-20));
+}
+setTimeout(()=>{notif.style.display='none';},2000);
+this.updateUI();
+if(GAME.quests.every(q=>q.complete)){
+setTimeout(()=>this.endGame(),2500);
+}
+}
+
+checkItemPickup(){
+for(let i=this.items.length-1;i>=0;i--){
+const item=this.items[i];
+const dist=Math.hypot(this.player.x-item.x,this.player.y-item.y);
+if(dist<30){
+GAME.inventory.push(item.data.id);
+for(let j=0;j<15;j++){
+this.particles.push(new Particle(item.x,item.y));
+}
+this.items.splice(i,1);
+this.updateUI();
+}
+}
+}
+
+updateUI(){
+const questList=document.getElementById('quest-list');
+questList.innerHTML='';
+GAME.quests.forEach(q=>{
+const div=document.createElement('div');
+div.className='quest'+(q.complete?' complete':'');
+div.innerHTML=`<strong>${q.complete?'✓':'○'} ${q.title}</strong><br><small>${q.description}</small>`;
+questList.appendChild(div);
+});
+const inventory=document.getElementById('inventory');
+inventory.innerHTML='';
+const itemCounts={};
+GAME.inventory.forEach(id=>{
+itemCounts[id]=(itemCounts[id]||0)+1;
+});
+Object.entries(itemCounts).forEach(([id,count])=>{
+const span=document.createElement('span');
+span.className='item';
+const icons={herb:'🌿',legendary_sword:'⚔️',ancient_map:'🗺️',healing_potion:'🧪',sacred_crystal:'💎'};
+span.textContent=`${icons[id]||'📦'} ${count>1?count+'x':''}`;
+inventory.appendChild(span);
+});
+}
+
+endGame(){
+GAME.gameComplete=true;
+const endEl=document.getElementById('endgame');
+const textEl=document.getElementById('end-text');
+textEl.innerHTML=`<strong>Congratulations, noble hero!</strong><br><br>You have restored the Sacred Crystal to the kingdom!<br>The darkness has been lifted, and light returns to the land.<br><br>Elder Marcus wields his legendary sword once more.<br>Healer Emma has brewed powerful potions to heal the sick.<br>The King's realm flourishes under your heroic deeds.<br><br><em>The kingdom will remember your name forever!</em>`;
+endEl.style.display='block';
+}
+
+cameraFollow(target){
+const cw=CONFIG.viewWidth/2,ch=CONFIG.viewHeight/2;
+this.camera.x=target.x-cw;
+this.camera.y=target.y-ch;
+const worldW=CONFIG.mapCols*CONFIG.tileSize;
+const worldH=CONFIG.mapRows*CONFIG.tileSize;
+this.camera.x=Math.max(0,Math.min(this.camera.x,worldW-CONFIG.viewWidth));
+this.camera.y=Math.max(0,Math.min(this.camera.y,worldH-CONFIG.viewHeight));
+}
+
+updateDebug(){
+const fps=(1/CONFIG.fixedStep).toFixed(0);
+const mx=Math.floor((MOUSE.x+this.camera.x)/CONFIG.tileSize);
+const my=Math.floor((MOUSE.y+this.camera.y)/CONFIG.tileSize);
+this.debugEl.textContent=`FPS:${fps} | Entities:${this.entities.length} | Items:${this.items.length} | Tile:${mx},${my}`;
+}
+}
+
+class TileMap{
+constructor(){
+this.tileData=new Uint8Array(CONFIG.mapCols*CONFIG.mapRows);
+this.generate();
+}
+
+generate(){
+for(let i=0;i<this.tileData.length;i++)this.tileData[i]=0;
+for(let i=0;i<300;i++){
+const cx=Math.floor(Math.random()*CONFIG.mapCols);
+const cy=Math.floor(Math.random()*CONFIG.mapRows);
+const rad=3+Math.random()*5|0;
+for(let y=cy-rad;y<=cy+rad;y++){
+for(let x=cx-rad;x<=cx+rad;x++){
+if(x>=0&&x<CONFIG.mapCols&&y>=0&&y<CONFIG.mapRows){
+const d=Math.hypot(x-cx,y-cy);
+if(d<rad)this.tileData[y*CONFIG.mapCols+x]=1;
+}
+}
+}
+}
+}
+
+getTile(x,y){
+const tx=Math.floor(x/CONFIG.tileSize);
+const ty=Math.floor(y/CONFIG.tileSize);
+if(tx<0||tx>=CONFIG.mapCols||ty<0||ty>=CONFIG.mapRows)return -1;
+return this.tileData[ty*CONFIG.mapCols+tx];
+}
+
+isWalkable(x,y){
+const t=this.getTile(x,y);
+return t===0;
+}
+
+render(ctx,cam){
+const ts=CONFIG.tileSize;
+const startCol=Math.floor(cam.x/ts);
+const endCol=Math.ceil((cam.x+CONFIG.viewWidth)/ts);
+const startRow=Math.floor(cam.y/ts);
+const endRow=Math.ceil((cam.y+CONFIG.viewHeight)/ts);
+for(let row=startRow;row<endRow;row++){
+for(let col=startCol;col<endCol;col++){
+if(col<0||col>=CONFIG.mapCols||row<0||row>=CONFIG.mapRows)continue;
+const tileId=this.tileData[row*CONFIG.mapCols+col];
+if(tileId===0){
+const seed=col*1000+row;
+const rand=(seed*9301+49297)%233280/233280;
+const grassShade=Math.floor(rand*3);
+if(grassShade===0)ctx.fillStyle='#3a6020';
+else if(grassShade===1)ctx.fillStyle='#325818';
+else ctx.fillStyle='#2f5516';
+ctx.fillRect(col*ts,row*ts,ts,ts);
+ctx.fillStyle='#4d7030';
+for(let i=0;i<3;i++){
+const bx=col*ts+((seed*i+3)%ts);
+const by=row*ts+((seed*i+7)%ts);
+ctx.fillRect(bx,by,1,3);
+}
+if(rand>0.9){
+const fx=col*ts+8+(seed%16);
+const fy=row*ts+8+((seed*7)%16);
+ctx.fillStyle=['#ff69b4','#ffff00','#ff0000','#ffffff'][seed%4];
+ctx.fillRect(fx,fy,3,3);
+}
+}else if(tileId===1){
+ctx.fillStyle='#1a4d7a';
+ctx.fillRect(col*ts,row*ts,ts,ts);
+ctx.fillStyle='#155a8a';
+ctx.fillRect(col*ts+4,row*ts+4,ts-8,ts-8);
+ctx.fillStyle='rgba(90,150,200,0.4)';
+ctx.fillRect(col*ts+6,row*ts+8,ts-12,2);
+}
+}
+}
+}
+}
+
+class Entity{
+constructor(x,y){
+this.x=x;
+this.y=y;
+this.w=CONFIG.tileSize*0.6;
+this.h=CONFIG.tileSize*0.9;
+this.vx=0;
+this.vy=0;
+this.speed=120;
+}
+update(dt,engine){}
+render(ctx){}
+}
+
+class Player extends Entity{
+constructor(x,y){
+super(x,y);
+this.dir=2;
+this.frame=0;
+this.animTime=0;
+}
+
+update(dt,engine){
+if(GAME.gameComplete)return;
+const input={x:0,y:0};
+if(KEYS['arrowleft']||KEYS['a'])input.x-=1;
+if(KEYS['arrowright']||KEYS['d'])input.x+=1;
+if(KEYS['arrowup']||KEYS['w'])input.y-=1;
+if(KEYS['arrowdown']||KEYS['s'])input.y+=1;
+if(input.x||input.y){
+const len=Math.hypot(input.x,input.y);
+this.vx=(input.x/len)*this.speed;
+this.vy=(input.y/len)*this.speed;
+const angle=Math.atan2(this.vy,this.vx);
+if(angle>-0.4&&angle<=0.4)this.dir=1;
+else if(angle>0.4&&angle<=1.2)this.dir=2;
+else if(angle>1.2||angle<=-1.2)this.dir=3;
+else this.dir=0;
+}else{
+this.vx=this.vy=0;
+}
+const nextX=this.x+this.vx*dt;
+const nextY=this.y+this.vy*dt;
+const map=engine.map;
+let canX=true,canY=true;
+const testPoints=[{x:nextX,y:this.y},{x:nextX+this.w,y:this.y},{x:nextX,y:this.y+this.h},{x:nextX+this.w,y:this.y+this.h}];
+for(const p of testPoints){
+if(!map.isWalkable(p.x,p.y))canX=false;
+}
+const testPointsY=[{x:this.x,y:nextY},{x:this.x+this.w,y:nextY},{x:this.x,y:nextY+this.h},{x:this.x+this.w,y:nextY+this.h}];
+for(const p of testPointsY){
+if(!map.isWalkable(p.x,p.y))canY=false;
+}
+if(canX)this.x=nextX;
+if(canY)this.y=nextY;
+if(this.vx||this.vy){
+this.animTime+=dt;
+if(this.animTime>0.12){
+this.animTime=0;
+this.frame=(this.frame+1)%4;
+if(this.frame===0||this.frame===2){
+engine.particles.push(new Particle(this.x,this.y+this.h-5));
+}
+}
+}else this.frame=0;
+}
+
+render(ctx){
+ctx.save();
+if(this.dir===3){
+ctx.scale(-1,1);
+ctx.translate(-this.x*2,0);
+}
+ctx.fillStyle='rgba(0,0,0,0.3)';
+ctx.beginPath();
+ctx.ellipse(this.x,this.y,12,6,0,0,Math.PI*2);
+ctx.fill();
+ctx.fillStyle='#4169e1';
+ctx.fillRect(this.x-8,this.y-28,16,20);
+ctx.fillStyle='#fdbcb4';
+ctx.beginPath();
+ctx.arc(this.x,this.y-32,8,0,Math.PI*2);
+ctx.fill();
+ctx.fillStyle='#000';
+if(this.dir===0){
+}else if(this.dir===2){
+ctx.fillRect(this.x-3,this.y-34,2,2);
+ctx.fillRect(this.x+1,this.y-34,2,2);
+ctx.beginPath();
+ctx.arc(this.x,this.y-30,3,0,Math.PI);
+ctx.stroke();
+}else{
+ctx.fillRect(this.x+2,this.y-33,2,2);
+}
+ctx.fillStyle='#2c4a80';
+const legOffset=this.frame%2===0?0:2;
+ctx.fillRect(this.x-7,this.y-8,6,8+legOffset);
+ctx.fillRect(this.x+1,this.y-8,6,8-legOffset);
+ctx.fillStyle='#4169e1';
+const armOffset=Math.sin(this.frame*Math.PI/2)*3;
+ctx.fillRect(this.x-12,this.y-24+armOffset,4,12);
+ctx.fillRect(this.x+8,this.y-24-armOffset,4,12);
+if(GAME.inventory.includes('legendary_sword')){
+ctx.strokeStyle='#ffd700';
+ctx.lineWidth=3;
+ctx.beginPath();
+ctx.moveTo(this.x+12,this.y-30);
+ctx.lineTo(this.x+12,this.y-15);
+ctx.stroke();
+ctx.fillStyle='#ffd700';
+ctx.fillRect(this.x+10,this.y-32,4,3);
+}
+ctx.restore();
+}
+}
+
+class NPC extends Entity{
+constructor(x,y,name,color,quest,dialogue){
+super(x,y);
+this.name=name;
+this.color=color;
+this.quest=quest;
+this.dialogue=dialogue;
+this.bobTime=Math.random()*10;
+}
+
+update(dt,engine){
+this.bobTime+=dt;
+}
+
+render(ctx){
+const bob=Math.sin(this.bobTime*2)*2;
+ctx.fillStyle='rgba(0,0,0,0.3)';
+ctx.beginPath();
+ctx.ellipse(this.x+this.w/2,this.y+this.h,this.w/2,4,0,0,Math.PI*2);
+ctx.fill();
+ctx.fillStyle=this.color;
+ctx.fillRect(this.x,this.y+bob,this.w,this.h-12);
+ctx.fillStyle='#fdb';
+ctx.fillRect(this.x+2,this.y-12+bob,this.w-4,12);
+ctx.fillStyle='#fff';
+ctx.font='bold 10px Arial';
+ctx.textAlign='center';
+ctx.strokeStyle='#000';
+ctx.lineWidth=2;
+ctx.strokeText(this.name,this.x+this.w/2,this.y-18+bob);
+ctx.fillText(this.name,this.x+this.w/2,this.y-18+bob);
+const quest=GAME.quests.find(q=>q.npc===this.name);
+if(quest&&!quest.complete){
+ctx.fillStyle='#ff0';
+ctx.font='bold 16px Arial';
+ctx.fillText('!',this.x+this.w/2,this.y-28+bob);
+}
+}
+}
+
+class Item{
+constructor(data){
+this.data=data;
+this.x=data.x*CONFIG.tileSize;
+this.y=data.y*CONFIG.tileSize;
+this.bobTime=Math.random()*10;
+}
+
+update(dt,engine){
+this.bobTime+=dt;
+}
+
+render(ctx){
+const bob=Math.sin(this.bobTime*3)*4;
+ctx.fillStyle='rgba(255,255,0,0.3)';
+ctx.beginPath();
+ctx.arc(this.x,this.y+bob,20,0,Math.PI*2);
+ctx.fill();
+ctx.fillStyle='#fff';
+ctx.font='24px Arial';
+ctx.textAlign='center';
+ctx.textBaseline='middle';
+const icons={legendary_sword:'⚔️',herb:'🌿',sacred_crystal:'💎'};
+const icon=icons[this.data.id]||'📦';
+ctx.strokeStyle='#000';
+ctx.lineWidth=3;
+ctx.strokeText(icon,this.x,this.y+bob);
+ctx.fillText(icon,this.x,this.y+bob);
+ctx.font='bold 10px Arial';
+ctx.fillStyle='#ff0';
+ctx.strokeStyle='#000';
+ctx.lineWidth=2;
+const name=this.data.name;
+ctx.strokeText(name,this.x,this.y+bob+20);
+ctx.fillText(name,this.x,this.y+bob+20);
+}
+}
+
+class Particle{
+constructor(x,y){
+this.x=x;
+this.y=y;
+this.vx=(Math.random()-0.5)*20;
+this.vy=-20-Math.random()*30;
+this.life=1+Math.random()*2;
+this.maxLife=this.life;
+this.size=2+Math.random()*3;
+this.color=['#ff0','#f90','#fff','#8df'][Math.floor(Math.random()*4)];
+}
+
+update(dt){
+this.x+=this.vx*dt;
+this.y+=this.vy*dt;
+this.vy+=30*dt;
+this.life-=dt;
+}
+
+render(ctx){
+const alpha=this.life/this.maxLife;
+ctx.fillStyle=this.color+Math.floor(alpha*255).toString(16).padStart(2,'0');
+ctx.beginPath();
+ctx.arc(this.x,this.y,this.size,0,Math.PI*2);
+ctx.fill();
+}
+}
+
+new Engine();
+</script>
+</body>
+</html>

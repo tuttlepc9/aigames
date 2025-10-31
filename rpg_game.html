@@ -52,11 +52,14 @@
         Power: <span id="power">70</span>%<br>
         <button onclick="changePower(-10)">-</button>
         <button onclick="changePower(10)">+</button>
+        <br><br>
+        <button onclick="respawnTargets()" style="padding: 8px 16px; background: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">🔄 Respawn Buildings</button>
     </div>
     <div id="stats">
         <strong>Stats</strong><br>
         Shots: <span id="shots">0</span><br>
-        Hits: <span id="hits">0</span>
+        Hits: <span id="hits">0</span><br>
+        Buildings: <span id="buildings">0</span>/<span id="total-buildings">0</span>
     </div>
     <canvas id="gameCanvas"></canvas>
 
@@ -74,15 +77,138 @@
         let hits = 0;
         let projectiles = [];
         let explosions = [];
-        let backgroundImg = new Image();
-        let imgLoaded = false;
+        let targets = [];
         
-        // Load background image
-        backgroundImg.onload = function() {
-            imgLoaded = true;
-            gameLoop();
-        };
-        backgroundImg.src = '/mnt/user-data/uploads/1761869246698_image.png';
+        // Create targets
+        for (let i = 0; i < 5; i++) {
+            targets.push({
+                x: 150 + i * 220,
+                y: 450 - Math.random() * 100,
+                width: 60,
+                height: 80 + Math.random() * 60,
+                destroyed: false,
+                hits: 0,
+                color: `hsl(${Math.random() * 60 + 10}, 60%, 40%)`
+            });
+        }
+        
+        // Draw background
+        function drawBackground() {
+            // Sky gradient
+            const skyGradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+            skyGradient.addColorStop(0, '#1a4d7a');
+            skyGradient.addColorStop(0.7, '#87CEEB');
+            skyGradient.addColorStop(1, '#b8d4e8');
+            ctx.fillStyle = skyGradient;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Sun
+            ctx.fillStyle = '#FFD700';
+            ctx.beginPath();
+            ctx.arc(1000, 100, 50, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Clouds
+            drawCloud(200, 80, 0.8);
+            drawCloud(500, 120, 1);
+            drawCloud(850, 90, 0.7);
+            
+            // Ground
+            ctx.fillStyle = '#6B8E23';
+            ctx.fillRect(0, 500, canvas.width, canvas.height - 500);
+            
+            // Grass detail
+            ctx.fillStyle = '#556B2F';
+            for (let i = 0; i < canvas.width; i += 20) {
+                ctx.fillRect(i, 500, 10, 5);
+            }
+            
+            // Mountains in background
+            ctx.fillStyle = '#5a6b7a';
+            ctx.beginPath();
+            ctx.moveTo(0, 500);
+            ctx.lineTo(200, 350);
+            ctx.lineTo(400, 450);
+            ctx.lineTo(500, 400);
+            ctx.lineTo(700, 480);
+            ctx.lineTo(canvas.width, 500);
+            ctx.fill();
+        }
+        
+        function drawCloud(x, y, scale) {
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+            ctx.beginPath();
+            ctx.arc(x, y, 30 * scale, 0, Math.PI * 2);
+            ctx.arc(x + 25 * scale, y, 35 * scale, 0, Math.PI * 2);
+            ctx.arc(x + 50 * scale, y, 30 * scale, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        
+        function drawTargets() {
+            targets.forEach(target => {
+                if (!target.destroyed) {
+                    // Building shadow
+                    ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+                    ctx.fillRect(target.x + 5, 500, target.width, 10);
+                    
+                    // Building
+                    const buildingGradient = ctx.createLinearGradient(target.x, 0, target.x + target.width, 0);
+                    const baseColor = target.color || '#A0522D';
+                    buildingGradient.addColorStop(0, baseColor);
+                    buildingGradient.addColorStop(0.5, lightenColor(baseColor, 20));
+                    buildingGradient.addColorStop(1, baseColor);
+                    ctx.fillStyle = buildingGradient;
+                    ctx.fillRect(target.x, target.y, target.width, 500 - target.y);
+                    
+                    // Windows
+                    ctx.fillStyle = target.hits > 0 ? '#FF6600' : '#FFD700';
+                    const windowRows = Math.floor((500 - target.y) / 30);
+                    const windowCols = Math.max(2, Math.floor(target.width / 30));
+                    for (let row = 0; row < windowRows; row++) {
+                        for (let col = 0; col < windowCols; col++) {
+                            const wx = target.x + 10 + col * (target.width - 20) / windowCols;
+                            const wy = target.y + 10 + row * 30;
+                            if (wx + 15 < target.x + target.width - 10) {
+                                ctx.fillRect(wx, wy, 15, 20);
+                            }
+                        }
+                    }
+                    
+                    // Roof
+                    ctx.fillStyle = darkenColor(baseColor, 30);
+                    ctx.beginPath();
+                    ctx.moveTo(target.x - 5, target.y);
+                    ctx.lineTo(target.x + target.width / 2, target.y - 20);
+                    ctx.lineTo(target.x + target.width + 5, target.y);
+                    ctx.closePath();
+                    ctx.fill();
+                    
+                    // Damage indicator
+                    if (target.hits > 0) {
+                        ctx.fillStyle = `rgba(255, 0, 0, ${0.2 + target.hits * 0.15})`;
+                        ctx.fillRect(target.x, target.y, target.width, 500 - target.y);
+                    }
+                }
+            });
+        }
+        
+        function lightenColor(color, percent) {
+            const num = parseInt(color.replace('#', ''), 16);
+            const amt = Math.round(2.55 * percent);
+            const R = Math.min(255, (num >> 16) + amt);
+            const G = Math.min(255, ((num >> 8) & 0x00FF) + amt);
+            const B = Math.min(255, (num & 0x0000FF) + amt);
+            return '#' + (0x1000000 + R * 0x10000 + G * 0x100 + B).toString(16).slice(1);
+        }
+        
+        function darkenColor(color, percent) {
+            const num = parseInt(color.replace('#', ''), 16);
+            const amt = Math.round(2.55 * percent);
+            const R = Math.max(0, (num >> 16) - amt);
+            const G = Math.max(0, ((num >> 8) & 0x00FF) - amt);
+            const B = Math.max(0, (num & 0x0000FF) - amt);
+            return '#' + (0x1000000 + R * 0x10000 + G * 0x100 + B).toString(16).slice(1);
+        }
         
         // Projectile class
         class Projectile {
@@ -118,7 +244,22 @@
                 if (this.progress >= 1) {
                     this.active = false;
                     explosions.push(new Explosion(this.targetX, this.targetY));
-                    hits++;
+                    
+                    // Check for target hits
+                    targets.forEach(target => {
+                        if (!target.destroyed && 
+                            this.targetX > target.x && 
+                            this.targetX < target.x + target.width &&
+                            this.targetY > target.y && 
+                            this.targetY < 500) {
+                            target.hits++;
+                            hits++;
+                            if (target.hits >= 3) {
+                                target.destroyed = true;
+                                explosions.push(new Explosion(target.x + target.width / 2, target.y + 50));
+                            }
+                        }
+                    });
                     updateStats();
                 }
             }
@@ -176,42 +317,56 @@
                 this.x = x;
                 this.y = y;
                 this.radius = 0;
-                this.maxRadius = 80;
+                this.maxRadius = 100;
                 this.life = 1;
                 this.particles = [];
+                this.shockwave = 1;
                 
                 // Create particles
-                for (let i = 0; i < 30; i++) {
-                    const angle = (Math.PI * 2 * i) / 30;
-                    const speed = 2 + Math.random() * 3;
+                for (let i = 0; i < 50; i++) {
+                    const angle = (Math.PI * 2 * i) / 50;
+                    const speed = 2 + Math.random() * 4;
                     this.particles.push({
                         x: this.x,
                         y: this.y,
                         vx: Math.cos(angle) * speed,
-                        vy: Math.sin(angle) * speed,
-                        life: 1
+                        vy: Math.sin(angle) * speed - Math.random() * 2,
+                        life: 1,
+                        size: 2 + Math.random() * 3
                     });
                 }
             }
             
             update() {
-                this.life -= 0.02;
-                this.radius += 3;
+                this.life -= 0.015;
+                this.radius += 4;
+                this.shockwave += 8;
                 
                 this.particles.forEach(p => {
                     p.x += p.vx;
                     p.y += p.vy;
-                    p.vy += 0.1; // gravity
-                    p.life -= 0.02;
+                    p.vy += 0.15; // gravity
+                    p.vx *= 0.98; // air resistance
+                    p.life -= 0.015;
                 });
             }
             
             draw() {
+                // Draw shockwave
+                if (this.shockwave < 150) {
+                    ctx.strokeStyle = `rgba(255, 200, 0, ${0.6 - this.shockwave / 150})`;
+                    ctx.lineWidth = 3;
+                    ctx.beginPath();
+                    ctx.arc(this.x, this.y, this.shockwave, 0, Math.PI * 2);
+                    ctx.stroke();
+                }
+                
                 // Draw main explosion
                 const gradient = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, this.radius);
-                gradient.addColorStop(0, `rgba(255, 255, 0, ${this.life * 0.8})`);
-                gradient.addColorStop(0.4, `rgba(255, 100, 0, ${this.life * 0.6})`);
-                gradient.addColorStop(1, `rgba(255, 0, 0, 0)`);
+                gradient.addColorStop(0, `rgba(255, 255, 200, ${this.life * 0.9})`);
+                gradient.addColorStop(0.3, `rgba(255, 150, 0, ${this.life * 0.7})`);
+                gradient.addColorStop(0.6, `rgba(255, 50, 0, ${this.life * 0.5})`);
+                gradient.addColorStop(1, `rgba(100, 0, 0, 0)`);
                 
                 ctx.fillStyle = gradient;
                 ctx.beginPath();
@@ -221,9 +376,16 @@
                 // Draw particles
                 this.particles.forEach(p => {
                     if (p.life > 0) {
-                        ctx.fillStyle = `rgba(255, ${150 + Math.random() * 100}, 0, ${p.life})`;
+                        const alpha = p.life * 0.8;
+                        ctx.fillStyle = `rgba(255, ${100 + Math.random() * 100}, 0, ${alpha})`;
                         ctx.beginPath();
-                        ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
+                        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                        ctx.fill();
+                        
+                        // Smoke trail
+                        ctx.fillStyle = `rgba(80, 80, 80, ${alpha * 0.3})`;
+                        ctx.beginPath();
+                        ctx.arc(p.x, p.y, p.size * 1.5, 0, Math.PI * 2);
                         ctx.fill();
                     }
                 });
@@ -257,17 +419,42 @@
         function updateStats() {
             document.getElementById('shots').textContent = shots;
             document.getElementById('hits').textContent = hits;
+            const remaining = targets.filter(t => !t.destroyed).length;
+            document.getElementById('buildings').textContent = remaining;
+            document.getElementById('total-buildings').textContent = targets.length;
+        }
+        
+        function respawnTargets() {
+            targets = [];
+            const numTargets = 5 + Math.floor(Math.random() * 3); // 5-7 buildings
+            
+            for (let i = 0; i < numTargets; i++) {
+                targets.push({
+                    x: 100 + i * (canvas.width - 200) / numTargets,
+                    y: 350 - Math.random() * 150,
+                    width: 50 + Math.random() * 30,
+                    height: 80 + Math.random() * 80,
+                    destroyed: false,
+                    hits: 0,
+                    color: `hsl(${Math.random() * 60 + 10}, 60%, 40%)` // Random brown/tan colors
+                });
+            }
+            
+            // Reset stats
+            shots = 0;
+            hits = 0;
+            projectiles = [];
+            explosions = [];
+            updateStats();
         }
         
         // Game loop
         function gameLoop() {
             // Draw background
-            if (imgLoaded) {
-                ctx.drawImage(backgroundImg, 0, 0, canvas.width, canvas.height);
-            } else {
-                ctx.fillStyle = '#87CEEB';
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
-            }
+            drawBackground();
+            
+            // Draw targets
+            drawTargets();
             
             // Update and draw projectiles
             projectiles = projectiles.filter(p => {
@@ -295,10 +482,11 @@
             requestAnimationFrame(gameLoop);
         }
         
-        // Start game loop once image loads
-        if (imgLoaded) {
-            gameLoop();
-        }
+        // Initialize stats display
+        updateStats();
+        
+        // Start game loop
+        gameLoop();
     </script>
 </body>
 </html>

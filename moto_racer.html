@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Moto Racer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+        
+        #gameContainer {
+            text-align: center;
+            position: relative;
+        }
+        
+        h1 {
+            font-size: 48px;
+            color: white;
+            margin-bottom: 10px;
+            text-shadow: 3px 3px 6px rgba(0, 0, 0, 0.5);
+        }
+        
+        #gameCanvas {
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-radius: 10px;
+            background: #1a1a1a;
+            cursor: none;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+        }
+        
+        #ui {
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            margin-top: 20px;
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            backdrop-filter: blur(10px);
+            color: white;
+        }
+        
+        .stat {
+            font-size: 24px;
+            font-weight: bold;
+        }
+        
+        .stat span {
+            color: #FFD700;
+        }
+        
+        #startBtn {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            font-size: 20px;
+            font-weight: bold;
+            border-radius: 50px;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+            transition: transform 0.2s;
+            margin-top: 15px;
+        }
+        
+        #startBtn:hover {
+            transform: translateY(-2px);
+        }
+        
+        #gameOver {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.95);
+            padding: 40px;
+            border-radius: 20px;
+            color: white;
+            z-index: 10;
+            border: 3px solid #f5576c;
+        }
+        
+        #gameOver h2 {
+            font-size: 36px;
+            margin-bottom: 20px;
+            color: #f5576c;
+        }
+        
+        #gameOver button {
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            font-size: 18px;
+            font-weight: bold;
+            border-radius: 10px;
+            cursor: pointer;
+            margin-top: 20px;
+        }
+        
+        .instructions {
+            color: white;
+            font-size: 16px;
+            margin-top: 15px;
+            opacity: 0.9;
+        }
+        
+        #speedometer {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 10px;
+            color: white;
+            font-size: 18px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <h1>🏍️ Moto Racer</h1>
+        <div style="position: relative; display: inline-block;">
+            <canvas id="gameCanvas" width="400" height="600"></canvas>
+            <div id="speedometer">SPEED: <span id="speedValue">0</span> km/h</div>
+        </div>
+        <div id="ui">
+            <div class="stat">🏁 Distance: <span id="distance">0</span>m</div>
+            <div class="stat">💰 Coins: <span id="coins">0</span></div>
+        </div>
+        <button id="startBtn">Start Race</button>
+        <div class="instructions">Use Arrow Keys (← →) or A/D to steer! Avoid traffic!</div>
+        <div id="gameOver">
+            <h2>🏁 Race Over!</h2>
+            <p id="finalStats"></p>
+            <button onclick="location.reload()">Race Again</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Game state
+        let gameRunning = false;
+        let distance = 0;
+        let coins = 0;
+        let speed = 5;
+        let maxSpeed = 12;
+        
+        // Player motorcycle
+        let player = {
+            x: canvas.width / 2 - 20,
+            y: canvas.height - 120,
+            width: 40,
+            height: 80,
+            velocityX: 0,
+            lane: 1 // 0 = left, 1 = middle, 2 = right
+        };
+        
+        let keys = {};
+        let roadOffset = 0;
+        let obstacles = [];
+        let collectibles = [];
+        let lastObstacleTime = 0;
+        let lastCollectibleTime = 0;
+        
+        // Lane positions
+        const lanes = [80, 180, 280];
+        
+        // Keyboard controls
+        document.addEventListener('keydown', (e) => {
+            keys[e.key] = true;
+            
+            if (gameRunning) {
+                if ((e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') && player.lane > 0) {
+                    player.lane--;
+                    player.x = lanes[player.lane] - player.width / 2;
+                }
+                if ((e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') && player.lane < 2) {
+                    player.lane++;
+                    player.x = lanes[player.lane] - player.width / 2;
+                }
+                if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') {
+                    speed = Math.min(speed + 0.5, maxSpeed);
+                }
+                if (e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') {
+                    speed = Math.max(speed - 0.5, 3);
+                }
+            }
+        });
+        
+        document.addEventListener('keyup', (e) => {
+            keys[e.key] = false;
+        });
+        
+        // Vehicle class for traffic
+        class Vehicle {
+            constructor() {
+                this.lane = Math.floor(Math.random() * 3);
+                this.x = lanes[this.lane] - 20;
+                this.y = -100;
+                this.width = 40;
+                this.height = 70;
+                this.speed = 2 + Math.random() * 2;
+                this.color = ['#ef4444', '#3b82f6', '#22c55e', '#eab308', '#8b5cf6'][Math.floor(Math.random() * 5)];
+            }
+            
+            update() {
+                this.y += speed - this.speed;
+            }
+            
+            draw() {
+                // Car body
+                ctx.fillStyle = this.color;
+                ctx.fillRect(this.x, this.y, this.width, this.height);
+                
+                // Windows
+                ctx.fillStyle = '#1e293b';
+                ctx.fillRect(this.x + 5, this.y + 10, this.width - 10, 20);
+                
+                // Wheels
+                ctx.fillStyle = '#000';
+                ctx.fillRect(this.x - 3, this.y + 10, 6, 12);
+                ctx.fillRect(this.x + this.width - 3, this.y + 10, 6, 12);
+                ctx.fillRect(this.x - 3, this.y + this.height - 22, 6, 12);
+                ctx.fillRect(this.x + this.width - 3, this.y + this.height - 22, 6, 12);
+                
+                // Lights
+                ctx.fillStyle = '#fef08a';
+                ctx.fillRect(this.x + 5, this.y + this.height - 5, 10, 3);
+                ctx.fillRect(this.x + this.width - 15, this.y + this.height - 5, 10, 3);
+            }
+            
+            collidesWith(player) {
+                return player.x < this.x + this.width &&
+                       player.x + player.width > this.x &&
+                       player.y < this.y + this.height &&
+                       player.y + player.height > this.y;
+            }
+        }
+        
+        // Coin class
+        class Coin {
+            constructor() {
+                this.lane = Math.floor(Math.random() * 3);
+                this.x = lanes[this.lane];
+                this.y = -50;
+                this.radius = 12;
+                this.angle = 0;
+            }
+            
+            update() {
+                this.y += speed;
+                this.angle += 0.1;
+            }
+            
+            draw() {
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                ctx.rotate(this.angle);
+                
+                // Coin
+                ctx.fillStyle = '#FFD700';
+                ctx.beginPath();
+                ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Shine
+                ctx.fillStyle = '#FFF';
+                ctx.beginPath();
+                ctx.arc(-4, -4, 4, 0, Math.PI * 2);
+                ctx.fill();
+                
+                ctx.restore();
+            }
+            
+            collidesWith(player) {
+                const centerX = player.x + player.width / 2;
+                const centerY = player.y + player.height / 2;
+                const distance = Math.sqrt((centerX - this.x) ** 2 + (centerY - this.y) ** 2);
+                return distance < this.radius + 20;
+            }
+        }
+        
+        function drawRoad() {
+            // Road background
+            ctx.fillStyle = '#374151';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Grass borders
+            ctx.fillStyle = '#166534';
+            ctx.fillRect(0, 0, 40, canvas.height);
+            ctx.fillRect(canvas.width - 40, 0, 40, canvas.height);
+            
+            // Road
+            ctx.fillStyle = '#4b5563';
+            ctx.fillRect(40, 0, canvas.width - 80, canvas.height);
+            
+            // Lane markings
+            ctx.strokeStyle = '#fbbf24';
+            ctx.lineWidth = 3;
+            ctx.setLineDash([20, 20]);
+            
+            // Animated road lines
+            ctx.save();
+            ctx.translate(0, roadOffset);
+            
+            for (let i = -canvas.height; i < canvas.height * 2; i += 40) {
+                ctx.beginPath();
+                ctx.moveTo(130, i);
+                ctx.lineTo(130, i + 20);
+                ctx.stroke();
+                
+                ctx.beginPath();
+                ctx.moveTo(230, i);
+                ctx.lineTo(230, i + 20);
+                ctx.stroke();
+            }
+            
+            ctx.restore();
+            ctx.setLineDash([]);
+        }
+        
+        function drawMotorcycle() {
+            ctx.save();
+            
+            // Shadow
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+            ctx.fillRect(player.x + 5, player.y + player.height, player.width - 10, 5);
+            
+            // Wheels
+            ctx.fillStyle = '#1f2937';
+            ctx.beginPath();
+            ctx.arc(player.x + 10, player.y + 60, 8, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(player.x + 30, player.y + 60, 8, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Bike body
+            ctx.fillStyle = '#ef4444';
+            ctx.fillRect(player.x + 8, player.y + 30, 24, 35);
+            
+            // Handlebars
+            ctx.strokeStyle = '#374151';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(player.x + 5, player.y + 35);
+            ctx.lineTo(player.x + 20, player.y + 25);
+            ctx.lineTo(player.x + 35, player.y + 35);
+            ctx.stroke();
+            
+            // Rider helmet
+            ctx.fillStyle = '#1e40af';
+            ctx.beginPath();
+            ctx.arc(player.x + 20, player.y + 20, 12, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Visor
+            ctx.fillStyle = '#1e293b';
+            ctx.fillRect(player.x + 14, player.y + 18, 12, 6);
+            
+            // Rider body
+            ctx.fillStyle = '#1f2937';
+            ctx.fillRect(player.x + 15, player.y + 30, 10, 20);
+            
+            // Headlight
+            ctx.fillStyle = '#fef08a';
+            ctx.fillRect(player.x + 15, player.y + 65, 10, 5);
+            
+            ctx.restore();
+        }
+        
+        function spawnObstacles() {
+            const now = Date.now();
+            if (now - lastObstacleTime > 1500 - (speed * 50)) {
+                obstacles.push(new Vehicle());
+                lastObstacleTime = now;
+            }
+        }
+        
+        function spawnCollectibles() {
+            const now = Date.now();
+            if (now - lastCollectibleTime > 2000) {
+                collectibles.push(new Coin());
+                lastCollectibleTime = now;
+            }
+        }
+        
+        function checkCollisions() {
+            // Check vehicle collisions
+            for (let obstacle of obstacles) {
+                if (obstacle.collidesWith(player)) {
+                    gameOver();
+                    return;
+                }
+            }
+            
+            // Check coin collisions
+            for (let i = collectibles.length - 1; i >= 0; i--) {
+                if (collectibles[i].collidesWith(player)) {
+                    coins++;
+                    distance += 50;
+                    updateUI();
+                    collectibles.splice(i, 1);
+                }
+            }
+        }
+        
+        function updateUI() {
+            document.getElementById('distance').textContent = Math.floor(distance);
+            document.getElementById('coins').textContent = coins;
+            document.getElementById('speedValue').textContent = Math.floor(speed * 20);
+        }
+        
+        function gameOver() {
+            gameRunning = false;
+            document.getElementById('finalStats').innerHTML = 
+                `Distance: <span style="color: #FFD700">${Math.floor(distance)}m</span><br>
+                 Coins: <span style="color: #FFD700">${coins}</span><br>
+                 Max Speed: <span style="color: #FFD700">${Math.floor(maxSpeed * 20)} km/h</span>`;
+            document.getElementById('gameOver').style.display = 'block';
+        }
+        
+        function gameLoop() {
+            if (!gameRunning) return;
+            
+            // Animate road
+            roadOffset += speed;
+            if (roadOffset > 40) roadOffset = 0;
+            
+            // Draw scene
+            drawRoad();
+            
+            // Spawn and update obstacles
+            spawnObstacles();
+            obstacles = obstacles.filter(obstacle => {
+                obstacle.update();
+                obstacle.draw();
+                return obstacle.y < canvas.height + 100;
+            });
+            
+            // Spawn and update collectibles
+            spawnCollectibles();
+            collectibles = collectibles.filter(coin => {
+                coin.update();
+                coin.draw();
+                return coin.y < canvas.height + 50;
+            });
+            
+            // Draw player
+            drawMotorcycle();
+            
+            // Check collisions
+            checkCollisions();
+            
+            // Update distance and speed
+            distance += speed * 0.1;
+            speed = Math.min(speed + 0.001, maxSpeed);
+            
+            if (distance % 100 < 1) updateUI();
+            
+            requestAnimationFrame(gameLoop);
+        }
+        
+        // Start game
+        document.getElementById('startBtn').addEventListener('click', () => {
+            gameRunning = true;
+            distance = 0;
+            coins = 0;
+            speed = 5;
+            obstacles = [];
+            collectibles = [];
+            player.lane = 1;
+            player.x = lanes[1] - player.width / 2;
+            lastObstacleTime = Date.now();
+            lastCollectibleTime = Date.now();
+            updateUI();
+            document.getElementById('startBtn').style.display = 'none';
+            gameLoop();
+        });
+        
+        // Initial draw
+        drawRoad();
+        drawMotorcycle();
+    </script>
+</body>
+</html>

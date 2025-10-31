@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Music & Tone Generator</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 40px;
+            max-width: 800px;
+            width: 100%;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+
+        h1 {
+            text-align: center;
+            color: #667eea;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 1.1em;
+        }
+
+        .mode-selector {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+
+        .mode-btn {
+            padding: 15px;
+            border: 2px solid #667eea;
+            background: white;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 1em;
+            font-weight: 600;
+            color: #667eea;
+        }
+
+        .mode-btn:hover {
+            background: #f0f4ff;
+            transform: translateY(-2px);
+        }
+
+        .mode-btn.active {
+            background: #667eea;
+            color: white;
+        }
+
+        .controls {
+            background: #f8f9ff;
+            padding: 25px;
+            border-radius: 15px;
+            margin-bottom: 25px;
+        }
+
+        .control-group {
+            margin-bottom: 20px;
+        }
+
+        .control-group:last-child {
+            margin-bottom: 0;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 600;
+            font-size: 0.95em;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            height: 6px;
+            border-radius: 3px;
+            background: #ddd;
+            outline: none;
+            -webkit-appearance: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #667eea;
+            cursor: pointer;
+        }
+
+        input[type="range"]::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #667eea;
+            cursor: pointer;
+            border: none;
+        }
+
+        select {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 1em;
+            background: white;
+            cursor: pointer;
+        }
+
+        .value-display {
+            float: right;
+            color: #667eea;
+            font-weight: 600;
+        }
+
+        .action-buttons {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        button {
+            padding: 15px 30px;
+            font-size: 1.1em;
+            font-weight: 600;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .generate-btn {
+            background: #667eea;
+            color: white;
+        }
+
+        .generate-btn:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .stop-btn {
+            background: #ef4444;
+            color: white;
+        }
+
+        .stop-btn:hover {
+            background: #dc2626;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(239, 68, 68, 0.4);
+        }
+
+        .stop-btn:disabled,
+        .generate-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .visualizer {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 15px;
+            height: 150px;
+            display: flex;
+            align-items: flex-end;
+            justify-content: space-around;
+            padding: 20px;
+            gap: 3px;
+            overflow: hidden;
+        }
+
+        .bar {
+            flex: 1;
+            background: rgba(255, 255, 255, 0.8);
+            border-radius: 3px 3px 0 0;
+            transition: height 0.1s;
+            min-height: 5px;
+        }
+
+        .info-box {
+            background: #e0e7ff;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 20px;
+            text-align: center;
+            color: #4c1d95;
+        }
+
+        @media (max-width: 600px) {
+            .container {
+                padding: 20px;
+            }
+
+            h1 {
+                font-size: 1.8em;
+            }
+
+            .action-buttons {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎵 AI Music Generator</h1>
+        <p class="subtitle">Create algorithmic music and tones</p>
+
+        <div class="mode-selector">
+            <button class="mode-btn active" data-mode="melody">Melody</button>
+            <button class="mode-btn" data-mode="ambient">Ambient</button>
+            <button class="mode-btn" data-mode="rhythm">Rhythm</button>
+            <button class="mode-btn" data-mode="tone">Single Tone</button>
+        </div>
+
+        <div class="controls">
+            <div class="control-group">
+                <label>
+                    Tempo (BPM): <span class="value-display" id="tempo-value">120</span>
+                </label>
+                <input type="range" id="tempo" min="60" max="200" value="120">
+            </div>
+
+            <div class="control-group">
+                <label>
+                    Complexity: <span class="value-display" id="complexity-value">5</span>
+                </label>
+                <input type="range" id="complexity" min="1" max="10" value="5">
+            </div>
+
+            <div class="control-group">
+                <label>Scale:</label>
+                <select id="scale">
+                    <option value="major">Major (Happy)</option>
+                    <option value="minor">Minor (Sad)</option>
+                    <option value="pentatonic">Pentatonic (Eastern)</option>
+                    <option value="blues">Blues</option>
+                    <option value="chromatic">Chromatic (Experimental)</option>
+                </select>
+            </div>
+
+            <div class="control-group">
+                <label>
+                    Duration (seconds): <span class="value-display" id="duration-value">10</span>
+                </label>
+                <input type="range" id="duration" min="5" max="60" value="10">
+            </div>
+        </div>
+
+        <div class="action-buttons">
+            <button class="generate-btn" id="generate">Generate Music</button>
+            <button class="stop-btn" id="stop" disabled>Stop</button>
+        </div>
+
+        <div class="visualizer" id="visualizer">
+            <div class="bar"></div>
+            <div class="bar"></div>
+            <div class="bar"></div>
+            <div class="bar"></div>
+            <div class="bar"></div>
+            <div class="bar"></div>
+            <div class="bar"></div>
+            <div class="bar"></div>
+            <div class="bar"></div>
+            <div class="bar"></div>
+            <div class="bar"></div>
+            <div class="bar"></div>
+            <div class="bar"></div>
+            <div class="bar"></div>
+            <div class="bar"></div>
+            <div class="bar"></div>
+            <div class="bar"></div>
+            <div class="bar"></div>
+            <div class="bar"></div>
+            <div class="bar"></div>
+        </div>
+
+        <div class="info-box" id="info">
+            Click "Generate Music" to create AI-generated melodies, ambient soundscapes, rhythms, or tones!
+        </div>
+    </div>
+
+    <script>
+        // Audio Context
+        let audioContext;
+        let currentNotes = [];
+        let isPlaying = false;
+        let currentMode = 'melody';
+
+        // Musical scales (in semitones from root)
+        const scales = {
+            major: [0, 2, 4, 5, 7, 9, 11, 12],
+            minor: [0, 2, 3, 5, 7, 8, 10, 12],
+            pentatonic: [0, 2, 4, 7, 9, 12],
+            blues: [0, 3, 5, 6, 7, 10, 12],
+            chromatic: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+        };
+
+        // Initialize audio context on user interaction
+        function initAudio() {
+            if (!audioContext) {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            }
+        }
+
+        // Get frequency from note
+        function getFrequency(note, octave = 4) {
+            const A4 = 440;
+            const semitone = Math.pow(2, 1/12);
+            return A4 * Math.pow(semitone, note - 69 + (octave - 4) * 12);
+        }
+
+        // Create oscillator node
+        function createNote(frequency, startTime, duration, type = 'sine') {
+            const osc = audioContext.createOscillator();
+            const gain = audioContext.createGain();
+            
+            osc.type = type;
+            osc.frequency.setValueAtTime(frequency, startTime);
+            
+            // ADSR envelope
+            gain.gain.setValueAtTime(0, startTime);
+            gain.gain.linearRampToValueAtTime(0.3, startTime + 0.01);
+            gain.gain.exponentialRampToValueAtTime(0.2, startTime + duration - 0.1);
+            gain.gain.linearRampToValueAtTime(0.001, startTime + duration);
+            
+            osc.connect(gain);
+            gain.connect(audioContext.destination);
+            
+            osc.start(startTime);
+            osc.stop(startTime + duration);
+            
+            return { osc, gain };
+        }
+
+        // Generate melody
+        function generateMelody(tempo, complexity, scale, duration) {
+            const beatDuration = 60 / tempo;
+            const notes = scales[scale];
+            const baseOctave = 4;
+            
+            let currentTime = audioContext.currentTime;
+            const endTime = currentTime + duration;
+            
+            let lastNote = 0;
+            
+            while (currentTime < endTime) {
+                // Choose note based on complexity
+                let noteIndex;
+                if (Math.random() < 0.7) {
+                    // Step-wise motion
+                    const step = Math.floor(Math.random() * 3) - 1;
+                    noteIndex = Math.max(0, Math.min(notes.length - 1, lastNote + step));
+                } else {
+                    // Jump
+                    noteIndex = Math.floor(Math.random() * notes.length);
+                }
+                
+                const octave = baseOctave + Math.floor(Math.random() * 2);
+                const frequency = getFrequency(60 + notes[noteIndex], octave);
+                
+                // Vary note duration based on complexity
+                const durationVariation = complexity / 10;
+                const noteDuration = beatDuration * (0.5 + Math.random() * durationVariation);
+                
+                createNote(frequency, currentTime, noteDuration, 'triangle');
+                
+                lastNote = noteIndex;
+                currentTime += noteDuration;
+                
+                // Add rests occasionally
+                if (Math.random() < 0.1 + complexity / 100) {
+                    currentTime += beatDuration * 0.25;
+                }
+            }
+        }
+
+        // Generate ambient soundscape
+        function generateAmbient(complexity, duration) {
+            const currentTime = audioContext.currentTime;
+            const layers = Math.max(3, Math.floor(complexity / 2));
+            
+            for (let i = 0; i < layers; i++) {
+                const baseFreq = 100 + Math.random() * 300;
+                const detune = (Math.random() - 0.5) * 10;
+                
+                const osc1 = audioContext.createOscillator();
+                const osc2 = audioContext.createOscillator();
+                const gain = audioContext.createGain();
+                const filter = audioContext.createBiquadFilter();
+                
+                osc1.type = 'sine';
+                osc2.type = 'sine';
+                osc1.frequency.setValueAtTime(baseFreq, currentTime);
+                osc2.frequency.setValueAtTime(baseFreq + detune, currentTime);
+                
+                filter.type = 'lowpass';
+                filter.frequency.setValueAtTime(1000 + Math.random() * 2000, currentTime);
+                
+                gain.gain.setValueAtTime(0, currentTime);
+                gain.gain.linearRampToValueAtTime(0.1 / layers, currentTime + 2);
+                gain.gain.setValueAtTime(0.1 / layers, currentTime + duration - 2);
+                gain.gain.linearRampToValueAtTime(0.001, currentTime + duration);
+                
+                osc1.connect(filter);
+                osc2.connect(filter);
+                filter.connect(gain);
+                gain.connect(audioContext.destination);
+                
+                osc1.start(currentTime);
+                osc2.start(currentTime);
+                osc1.stop(currentTime + duration);
+                osc2.stop(currentTime + duration);
+                
+                // LFO for filter modulation
+                const lfo = audioContext.createOscillator();
+                const lfoGain = audioContext.createGain();
+                lfo.frequency.setValueAtTime(0.1 + Math.random() * 0.5, currentTime);
+                lfoGain.gain.setValueAtTime(500, currentTime);
+                lfo.connect(lfoGain);
+                lfoGain.connect(filter.frequency);
+                lfo.start(currentTime);
+                lfo.stop(currentTime + duration);
+            }
+        }
+
+        // Generate rhythm
+        function generateRhythm(tempo, complexity, duration) {
+            const beatDuration = 60 / tempo;
+            let currentTime = audioContext.currentTime;
+            const endTime = currentTime + duration;
+            
+            const patterns = [
+                [1, 0, 0, 1], // Basic
+                [1, 0, 1, 0], // Alternating
+                [1, 0, 0, 1, 0, 0, 1, 0], // Complex
+                [1, 1, 0, 1], // Syncopated
+            ];
+            
+            const pattern = patterns[Math.min(Math.floor(complexity / 3), patterns.length - 1)];
+            let patternIndex = 0;
+            
+            while (currentTime < endTime) {
+                if (pattern[patternIndex % pattern.length]) {
+                    // Bass drum
+                    const osc = audioContext.createOscillator();
+                    const gain = audioContext.createGain();
+                    
+                    osc.frequency.setValueAtTime(150, currentTime);
+                    osc.frequency.exponentialRampToValueAtTime(50, currentTime + 0.1);
+                    
+                    gain.gain.setValueAtTime(1, currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.001, currentTime + 0.2);
+                    
+                    osc.connect(gain);
+                    gain.connect(audioContext.destination);
+                    
+                    osc.start(currentTime);
+                    osc.stop(currentTime + 0.2);
+                    
+                    // Hi-hat
+                    if (Math.random() < complexity / 10) {
+                        const noise = audioContext.createBufferSource();
+                        const buffer = audioContext.createBuffer(1, audioContext.sampleRate * 0.05, audioContext.sampleRate);
+                        const data = buffer.getChannelData(0);
+                        for (let i = 0; i < data.length; i++) {
+                            data[i] = Math.random() * 2 - 1;
+                        }
+                        noise.buffer = buffer;
+                        
+                        const noiseGain = audioContext.createGain();
+                        const filter = audioContext.createBiquadFilter();
+                        filter.type = 'highpass';
+                        filter.frequency.setValueAtTime(8000, currentTime);
+                        
+                        noiseGain.gain.setValueAtTime(0.1, currentTime);
+                        noiseGain.gain.exponentialRampToValueAtTime(0.001, currentTime + 0.05);
+                        
+                        noise.connect(filter);
+                        filter.connect(noiseGain);
+                        noiseGain.connect(audioContext.destination);
+                        
+                        noise.start(currentTime);
+                    }
+                }
+                
+                currentTime += beatDuration / 2;
+                patternIndex++;
+            }
+        }
+
+        // Generate single tone
+        function generateTone(duration) {
+            const currentTime = audioContext.currentTime;
+            const frequency = 440 + Math.random() * 440; // Random tone
+            
+            const osc = audioContext.createOscillator();
+            const gain = audioContext.createGain();
+            
+            osc.type = ['sine', 'square', 'sawtooth', 'triangle'][Math.floor(Math.random() * 4)];
+            osc.frequency.setValueAtTime(frequency, currentTime);
+            
+            gain.gain.setValueAtTime(0, currentTime);
+            gain.gain.linearRampToValueAtTime(0.3, currentTime + 0.1);
+            gain.gain.setValueAtTime(0.3, currentTime + duration - 0.5);
+            gain.gain.exponentialRampToValueAtTime(0.001, currentTime + duration);
+            
+            osc.connect(gain);
+            gain.connect(audioContext.destination);
+            
+            osc.start(currentTime);
+            osc.stop(currentTime + duration);
+        }
+
+        // Visualizer animation
+        function animateVisualizer() {
+            const bars = document.querySelectorAll('.bar');
+            
+            function animate() {
+                if (!isPlaying) return;
+                
+                bars.forEach(bar => {
+                    const height = Math.random() * 80 + 20;
+                    bar.style.height = height + '%';
+                });
+                
+                requestAnimationFrame(animate);
+            }
+            
+            animate();
+        }
+
+        // Event Listeners
+        document.querySelectorAll('.mode-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                currentMode = btn.dataset.mode;
+            });
+        });
+
+        document.getElementById('tempo').addEventListener('input', (e) => {
+            document.getElementById('tempo-value').textContent = e.target.value;
+        });
+
+        document.getElementById('complexity').addEventListener('input', (e) => {
+            document.getElementById('complexity-value').textContent = e.target.value;
+        });
+
+        document.getElementById('duration').addEventListener('input', (e) => {
+            document.getElementById('duration-value').textContent = e.target.value;
+        });
+
+        document.getElementById('generate').addEventListener('click', () => {
+            initAudio();
+            
+            const tempo = parseInt(document.getElementById('tempo').value);
+            const complexity = parseInt(document.getElementById('complexity').value);
+            const scale = document.getElementById('scale').value;
+            const duration = parseInt(document.getElementById('duration').value);
+            
+            isPlaying = true;
+            document.getElementById('generate').disabled = true;
+            document.getElementById('stop').disabled = false;
+            document.getElementById('info').textContent = `Playing ${currentMode} for ${duration} seconds...`;
+            
+            animateVisualizer();
+            
+            switch(currentMode) {
+                case 'melody':
+                    generateMelody(tempo, complexity, scale, duration);
+                    break;
+                case 'ambient':
+                    generateAmbient(complexity, duration);
+                    break;
+                case 'rhythm':
+                    generateRhythm(tempo, complexity, duration);
+                    break;
+                case 'tone':
+                    generateTone(duration);
+                    break;
+            }
+            
+            setTimeout(() => {
+                isPlaying = false;
+                document.getElementById('generate').disabled = false;
+                document.getElementById('stop').disabled = true;
+                document.getElementById('info').textContent = 'Generation complete! Create another one.';
+                
+                // Reset visualizer
+                document.querySelectorAll('.bar').forEach(bar => {
+                    bar.style.height = '5px';
+                });
+            }, duration * 1000);
+        });
+
+        document.getElementById('stop').addEventListener('click', () => {
+            if (audioContext) {
+                audioContext.close().then(() => {
+                    audioContext = null;
+                    isPlaying = false;
+                    document.getElementById('generate').disabled = false;
+                    document.getElementById('stop').disabled = true;
+                    document.getElementById('info').textContent = 'Stopped. Ready to generate new music!';
+                    
+                    // Reset visualizer
+                    document.querySelectorAll('.bar').forEach(bar => {
+                        bar.style.height = '5px';
+                    });
+                });
+            }
+        });
+    </script>
+</body>
+</html>

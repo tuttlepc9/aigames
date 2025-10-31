@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Circle Clicker - Reaction Game</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+        
+        #gameContainer {
+            text-align: center;
+            color: white;
+        }
+        
+        #gameArea {
+            width: 600px;
+            height: 400px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            position: relative;
+            margin: 20px auto;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(10px);
+            cursor: crosshair;
+        }
+        
+        .circle {
+            position: absolute;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: transform 0.1s;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+        }
+        
+        .circle:hover {
+            transform: scale(1.1);
+        }
+        
+        .circle:active {
+            transform: scale(0.95);
+        }
+        
+        #score {
+            font-size: 32px;
+            font-weight: bold;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+        }
+        
+        #timer {
+            font-size: 24px;
+            margin-bottom: 20px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+        }
+        
+        #startBtn {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            font-size: 20px;
+            border-radius: 50px;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+            transition: transform 0.2s;
+            margin-top: 20px;
+        }
+        
+        #startBtn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+        }
+        
+        #startBtn:active {
+            transform: translateY(0);
+        }
+        
+        #gameOver {
+            display: none;
+            font-size: 28px;
+            margin-top: 20px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+        }
+        
+        h1 {
+            font-size: 48px;
+            margin-bottom: 10px;
+            text-shadow: 3px 3px 6px rgba(0, 0, 0, 0.3);
+        }
+        
+        .subtitle {
+            font-size: 18px;
+            opacity: 0.9;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <h1>🎯 Circle Clicker</h1>
+        <p class="subtitle">Click the circles before they disappear!</p>
+        <div id="score">Score: 0</div>
+        <div id="timer">Time: 30s</div>
+        <div id="gameArea"></div>
+        <button id="startBtn">Start Game</button>
+        <div id="gameOver"></div>
+    </div>
+
+    <script>
+        const gameArea = document.getElementById('gameArea');
+        const scoreDisplay = document.getElementById('score');
+        const timerDisplay = document.getElementById('timer');
+        const startBtn = document.getElementById('startBtn');
+        const gameOverDisplay = document.getElementById('gameOver');
+        
+        let score = 0;
+        let timeLeft = 30;
+        let gameActive = false;
+        let gameInterval;
+        let timerInterval;
+        let circleInterval;
+        
+        const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E2'];
+        
+        function getRandomPosition() {
+            const maxX = gameArea.clientWidth - 80;
+            const maxY = gameArea.clientHeight - 80;
+            return {
+                x: Math.random() * maxX,
+                y: Math.random() * maxY
+            };
+        }
+        
+        function getRandomSize() {
+            return 40 + Math.random() * 40; // Between 40 and 80px
+        }
+        
+        function createCircle() {
+            if (!gameActive) return;
+            
+            const circle = document.createElement('div');
+            circle.className = 'circle';
+            const size = getRandomSize();
+            const pos = getRandomPosition();
+            const color = colors[Math.floor(Math.random() * colors.length)];
+            
+            circle.style.width = size + 'px';
+            circle.style.height = size + 'px';
+            circle.style.left = pos.x + 'px';
+            circle.style.top = pos.y + 'px';
+            circle.style.background = color;
+            
+            circle.addEventListener('click', function() {
+                score++;
+                scoreDisplay.textContent = 'Score: ' + score;
+                circle.remove();
+                
+                // Create a new circle immediately when one is clicked
+                createCircle();
+            });
+            
+            gameArea.appendChild(circle);
+            
+            // Remove circle after 1.5 seconds if not clicked
+            setTimeout(() => {
+                if (circle.parentNode) {
+                    circle.remove();
+                }
+            }, 1500);
+        }
+        
+        function startGame() {
+            score = 0;
+            timeLeft = 30;
+            gameActive = true;
+            scoreDisplay.textContent = 'Score: 0';
+            timerDisplay.textContent = 'Time: 30s';
+            gameOverDisplay.style.display = 'none';
+            startBtn.style.display = 'none';
+            gameArea.innerHTML = '';
+            
+            // Create first circle
+            createCircle();
+            
+            // Create new circles every 800ms
+            circleInterval = setInterval(() => {
+                if (gameActive) {
+                    createCircle();
+                }
+            }, 800);
+            
+            // Timer countdown
+            timerInterval = setInterval(() => {
+                timeLeft--;
+                timerDisplay.textContent = 'Time: ' + timeLeft + 's';
+                
+                if (timeLeft <= 0) {
+                    endGame();
+                }
+            }, 1000);
+        }
+        
+        function endGame() {
+            gameActive = false;
+            clearInterval(circleInterval);
+            clearInterval(timerInterval);
+            gameArea.innerHTML = '';
+            
+            gameOverDisplay.textContent = '🎮 Game Over! Final Score: ' + score;
+            gameOverDisplay.style.display = 'block';
+            startBtn.style.display = 'inline-block';
+            startBtn.textContent = 'Play Again';
+        }
+        
+        startBtn.addEventListener('click', startGame);
+    </script>
+</body>
+</html>

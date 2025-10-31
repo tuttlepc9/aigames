@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trump Maze Runner</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #1e40af 0%, #7e22ce 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            color: white;
+        }
+        
+        #gameContainer {
+            text-align: center;
+        }
+        
+        h1 {
+            font-size: 42px;
+            margin-bottom: 10px;
+            text-shadow: 3px 3px 6px rgba(0, 0, 0, 0.5);
+            color: #FFD700;
+        }
+        
+        #gameCanvas {
+            border: 4px solid rgba(255, 215, 0, 0.5);
+            border-radius: 10px;
+            background: #000;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+        }
+        
+        #ui {
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            margin-top: 20px;
+            padding: 15px;
+            background: rgba(255, 215, 0, 0.1);
+            border-radius: 10px;
+            backdrop-filter: blur(10px);
+        }
+        
+        .stat {
+            font-size: 24px;
+            font-weight: bold;
+        }
+        
+        .stat span {
+            color: #FFD700;
+        }
+        
+        #startBtn {
+            background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%);
+            color: #000;
+            border: none;
+            padding: 15px 40px;
+            font-size: 20px;
+            font-weight: bold;
+            border-radius: 50px;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+            transition: transform 0.2s;
+            margin-top: 15px;
+        }
+        
+        #startBtn:hover {
+            transform: translateY(-2px);
+        }
+        
+        #gameOver {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.95);
+            padding: 40px;
+            border-radius: 20px;
+            color: white;
+            z-index: 10;
+            border: 3px solid #FFD700;
+        }
+        
+        #gameOver h2 {
+            font-size: 36px;
+            margin-bottom: 20px;
+            color: #FFD700;
+        }
+        
+        #gameOver button {
+            background: #FFD700;
+            color: #000;
+            border: none;
+            padding: 15px 40px;
+            font-size: 18px;
+            font-weight: bold;
+            border-radius: 10px;
+            cursor: pointer;
+            margin-top: 20px;
+        }
+        
+        .instructions {
+            color: white;
+            font-size: 16px;
+            margin-top: 15px;
+            opacity: 0.9;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <h1>💰 Trump Maze Runner</h1>
+        <canvas id="gameCanvas" width="560" height="620"></canvas>
+        <div id="ui">
+            <div class="stat">💰 Score: <span id="score">0</span></div>
+            <div class="stat">❤️ Lives: <span id="lives">3</span></div>
+            <div class="stat">🏆 Level: <span id="level">1</span></div>
+        </div>
+        <button id="startBtn">Start Game</button>
+        <div class="instructions">Use Arrow Keys to move! Collect all the gold coins! Avoid the enemies!</div>
+        <div id="gameOver">
+            <h2>Game Over!</h2>
+            <p id="finalScore"></p>
+            <button onclick="location.reload()">Play Again</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        const TILE_SIZE = 20;
+        const COLS = 28;
+        const ROWS = 31;
+        
+        // Game state
+        let score = 0;
+        let lives = 3;
+        let level = 1;
+        let gameRunning = false;
+        let powerUpActive = false;
+        let powerUpTimer = 0;
+        
+        // Maze layout (1 = wall, 0 = path, 2 = coin, 3 = power-up)
+        let maze = [
+            [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+            [1,2,2,2,2,2,2,2,2,2,2,2,2,1,1,2,2,2,2,2,2,2,2,2,2,2,2,1],
+            [1,2,1,1,1,1,2,1,1,1,1,1,2,1,1,2,1,1,1,1,1,2,1,1,1,1,2,1],
+            [1,3,1,1,1,1,2,1,1,1,1,1,2,1,1,2,1,1,1,1,1,2,1,1,1,1,3,1],
+            [1,2,1,1,1,1,2,1,1,1,1,1,2,1,1,2,1,1,1,1,1,2,1,1,1,1,2,1],
+            [1,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,1],
+            [1,2,1,1,1,1,2,1,1,2,1,1,1,1,1,1,1,1,2,1,1,2,1,1,1,1,2,1],
+            [1,2,1,1,1,1,2,1,1,2,1,1,1,1,1,1,1,1,2,1,1,2,1,1,1,1,2,1],
+            [1,2,2,2,2,2,2,1,1,2,2,2,2,1,1,2,2,2,2,1,1,2,2,2,2,2,2,1],
+            [1,1,1,1,1,1,2,1,1,1,1,1,0,1,1,0,1,1,1,1,1,2,1,1,1,1,1,1],
+            [1,1,1,1,1,1,2,1,1,1,1,1,0,1,1,0,1,1,1,1,1,2,1,1,1,1,1,1],
+            [1,1,1,1,1,1,2,1,1,0,0,0,0,0,0,0,0,0,0,1,1,2,1,1,1,1,1,1],
+            [1,1,1,1,1,1,2,1,1,0,1,1,1,0,0,1,1,1,0,1,1,2,1,1,1,1,1,1],
+            [1,1,1,1,1,1,2,1,1,0,1,0,0,0,0,0,0,1,0,1,1,2,1,1,1,1,1,1],
+            [0,0,0,0,0,0,2,0,0,0,1,0,0,0,0,0,0,1,0,0,0,2,0,0,0,0,0,0],
+            [1,1,1,1,1,1,2,1,1,0,1,0,0,0,0,0,0,1,0,1,1,2,1,1,1,1,1,1],
+            [1,1,1,1,1,1,2,1,1,0,1,1,1,1,1,1,1,1,0,1,1,2,1,1,1,1,1,1],
+            [1,1,1,1,1,1,2,1,1,0,0,0,0,0,0,0,0,0,0,1,1,2,1,1,1,1,1,1],
+            [1,1,1,1,1,1,2,1,1,0,1,1,1,1,1,1,1,1,0,1,1,2,1,1,1,1,1,1],
+            [1,1,1,1,1,1,2,1,1,0,1,1,1,1,1,1,1,1,0,1,1,2,1,1,1,1,1,1],
+            [1,2,2,2,2,2,2,2,2,2,2,2,2,1,1,2,2,2,2,2,2,2,2,2,2,2,2,1],
+            [1,2,1,1,1,1,2,1,1,1,1,1,2,1,1,2,1,1,1,1,1,2,1,1,1,1,2,1],
+            [1,2,1,1,1,1,2,1,1,1,1,1,2,1,1,2,1,1,1,1,1,2,1,1,1,1,2,1],
+            [1,3,2,2,1,1,2,2,2,2,2,2,2,0,0,2,2,2,2,2,2,2,1,1,2,2,3,1],
+            [1,1,1,2,1,1,2,1,1,2,1,1,1,1,1,1,1,1,2,1,1,2,1,1,2,1,1,1],
+            [1,1,1,2,1,1,2,1,1,2,1,1,1,1,1,1,1,1,2,1,1,2,1,1,2,1,1,1],
+            [1,2,2,2,2,2,2,1,1,2,2,2,2,1,1,2,2,2,2,1,1,2,2,2,2,2,2,1],
+            [1,2,1,1,1,1,1,1,1,1,1,1,2,1,1,2,1,1,1,1,1,1,1,1,1,1,2,1],
+            [1,2,1,1,1,1,1,1,1,1,1,1,2,1,1,2,1,1,1,1,1,1,1,1,1,1,2,1],
+            [1,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,1],
+            [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+        ];
+        
+        // Player
+        let player = {
+            x: 14,
+            y: 23,
+            direction: 0, // 0=right, 1=down, 2=left, 3=up
+            nextDirection: 0,
+            moving: false,
+            mouthOpen: 0
+        };
+        
+        // Ghosts/Enemies
+        let enemies = [
+            {x: 13, y: 11, color: '#FF0000', startX: 13, startY: 11, scatter: true},
+            {x: 14, y: 11, color: '#00FFFF', startX: 14, startY: 11, scatter: true},
+            {x: 13, y: 13, color: '#FFB8FF', startX: 13, startY: 13, scatter: true},
+            {x: 14, y: 13, color: '#FFB852', startX: 14, startY: 13, scatter: true}
+        ];
+        
+        let keys = {};
+        
+        document.addEventListener('keydown', (e) => {
+            keys[e.key] = true;
+            
+            if (gameRunning) {
+                if (e.key === 'ArrowLeft') player.nextDirection = 2;
+                if (e.key === 'ArrowRight') player.nextDirection = 0;
+                if (e.key === 'ArrowUp') player.nextDirection = 3;
+                if (e.key === 'ArrowDown') player.nextDirection = 1;
+            }
+        });
+        
+        document.addEventListener('keyup', (e) => {
+            keys[e.key] = false;
+        });
+        
+        function drawMaze() {
+            for (let row = 0; row < ROWS; row++) {
+                for (let col = 0; col < COLS; col++) {
+                    const x = col * TILE_SIZE;
+                    const y = row * TILE_SIZE;
+                    
+                    if (maze[row][col] === 1) {
+                        // Wall
+                        ctx.fillStyle = '#2563eb';
+                        ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
+                        ctx.strokeStyle = '#1e40af';
+                        ctx.strokeRect(x, y, TILE_SIZE, TILE_SIZE);
+                    } else {
+                        // Path
+                        ctx.fillStyle = '#000';
+                        ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
+                    }
+                    
+                    if (maze[row][col] === 2) {
+                        // Coin
+                        ctx.fillStyle = '#FFD700';
+                        ctx.beginPath();
+                        ctx.arc(x + TILE_SIZE / 2, y + TILE_SIZE / 2, 3, 0, Math.PI * 2);
+                        ctx.fill();
+                    } else if (maze[row][col] === 3) {
+                        // Power-up
+                        ctx.fillStyle = '#FFD700';
+                        ctx.beginPath();
+                        ctx.arc(x + TILE_SIZE / 2, y + TILE_SIZE / 2, 6, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+                }
+            }
+        }
+        
+        function drawPlayer() {
+            const x = player.x * TILE_SIZE + TILE_SIZE / 2;
+            const y = player.y * TILE_SIZE + TILE_SIZE / 2;
+            
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.rotate(player.direction * Math.PI / 2);
+            
+            // Trump head (simplified)
+            ctx.fillStyle = '#FFA07A';
+            ctx.beginPath();
+            ctx.arc(0, 0, 8, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Hair
+            ctx.fillStyle = '#FFD700';
+            ctx.beginPath();
+            ctx.ellipse(-2, -5, 6, 4, -0.3, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Mouth
+            if (player.mouthOpen > 0.5) {
+                ctx.fillStyle = '#000';
+                ctx.beginPath();
+                ctx.moveTo(5, 0);
+                ctx.arc(0, 0, 8, 0, Math.PI / 4);
+                ctx.lineTo(0, 0);
+                ctx.closePath();
+                ctx.fill();
+            }
+            
+            ctx.restore();
+            
+            player.mouthOpen = (player.mouthOpen + 0.1) % 1;
+        }
+        
+        function drawEnemies() {
+            enemies.forEach(enemy => {
+                const x = enemy.x * TILE_SIZE + TILE_SIZE / 2;
+                const y = enemy.y * TILE_SIZE + TILE_SIZE / 2;
+                
+                if (powerUpActive) {
+                    // Scared ghost - blue
+                    ctx.fillStyle = '#0000FF';
+                } else {
+                    ctx.fillStyle = enemy.color;
+                }
+                
+                // Ghost body
+                ctx.beginPath();
+                ctx.arc(x, y - 3, 8, Math.PI, 0);
+                ctx.lineTo(x + 8, y + 7);
+                ctx.lineTo(x + 5, y + 4);
+                ctx.lineTo(x + 2, y + 7);
+                ctx.lineTo(x - 2, y + 4);
+                ctx.lineTo(x - 5, y + 7);
+                ctx.lineTo(x - 8, y + 4);
+                ctx.closePath();
+                ctx.fill();
+                
+                // Eyes
+                ctx.fillStyle = '#FFF';
+                ctx.beginPath();
+                ctx.arc(x - 3, y - 2, 2, 0, Math.PI * 2);
+                ctx.arc(x + 3, y - 2, 2, 0, Math.PI * 2);
+                ctx.fill();
+                
+                if (!powerUpActive) {
+                    ctx.fillStyle = '#000';
+                    ctx.beginPath();
+                    ctx.arc(x - 3, y - 2, 1, 0, Math.PI * 2);
+                    ctx.arc(x + 3, y - 2, 1, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            });
+        }
+        
+        function canMove(x, y) {
+            if (x < 0 || x >= COLS || y < 0 || y >= ROWS) return false;
+            return maze[y][x] !== 1;
+        }
+        
+        function movePlayer() {
+            // Try to change direction
+            const directions = [
+                {dx: 1, dy: 0},  // right
+                {dx: 0, dy: 1},  // down
+                {dx: -1, dy: 0}, // left
+                {dx: 0, dy: -1}  // up
+            ];
+            
+            const nextDir = directions[player.nextDirection];
+            if (canMove(player.x + nextDir.dx, player.y + nextDir.dy)) {
+                player.direction = player.nextDirection;
+            }
+            
+            // Move in current direction
+            const dir = directions[player.direction];
+            const newX = player.x + dir.dx;
+            const newY = player.y + dir.dy;
+            
+            if (canMove(newX, newY)) {
+                player.x = newX;
+                player.y = newY;
+                
+                // Wrap around edges
+                if (player.x < 0) player.x = COLS - 1;
+                if (player.x >= COLS) player.x = 0;
+                
+                // Collect coins
+                if (maze[player.y][player.x] === 2) {
+                    maze[player.y][player.x] = 0;
+                    score += 10;
+                    updateUI();
+                    checkWin();
+                } else if (maze[player.y][player.x] === 3) {
+                    maze[player.y][player.x] = 0;
+                    score += 50;
+                    powerUpActive = true;
+                    powerUpTimer = 100; // ~5 seconds
+                    updateUI();
+                }
+            }
+        }
+        
+        function moveEnemies() {
+            enemies.forEach(enemy => {
+                // Simple AI - random movement
+                const directions = [
+                    {dx: 1, dy: 0},
+                    {dx: 0, dy: 1},
+                    {dx: -1, dy: 0},
+                    {dx: 0, dy: -1}
+                ];
+                
+                const validMoves = directions.filter(dir => 
+                    canMove(enemy.x + dir.dx, enemy.y + dir.dy)
+                );
+                
+                if (validMoves.length > 0) {
+                    const move = validMoves[Math.floor(Math.random() * validMoves.length)];
+                    enemy.x += move.dx;
+                    enemy.y += move.dy;
+                    
+                    // Wrap around edges
+                    if (enemy.x < 0) enemy.x = COLS - 1;
+                    if (enemy.x >= COLS) enemy.x = 0;
+                }
+            });
+        }
+        
+        function checkCollision() {
+            enemies.forEach(enemy => {
+                if (Math.abs(enemy.x - player.x) < 1 && Math.abs(enemy.y - player.y) < 1) {
+                    if (powerUpActive) {
+                        // Eat ghost
+                        score += 200;
+                        enemy.x = enemy.startX;
+                        enemy.y = enemy.startY;
+                        updateUI();
+                    } else {
+                        // Lose life
+                        lives--;
+                        updateUI();
+                        if (lives <= 0) {
+                            gameOver();
+                        } else {
+                            resetPositions();
+                        }
+                    }
+                }
+            });
+        }
+        
+        function resetPositions() {
+            player.x = 14;
+            player.y = 23;
+            player.direction = 0;
+            enemies.forEach(enemy => {
+                enemy.x = enemy.startX;
+                enemy.y = enemy.startY;
+            });
+        }
+        
+        function checkWin() {
+            let coinsLeft = 0;
+            for (let row = 0; row < ROWS; row++) {
+                for (let col = 0; col < COLS; col++) {
+                    if (maze[row][col] === 2 || maze[row][col] === 3) {
+                        coinsLeft++;
+                    }
+                }
+            }
+            
+            if (coinsLeft === 0) {
+                level++;
+                score += 1000;
+                updateUI();
+                resetLevel();
+            }
+        }
+        
+        function resetLevel() {
+            // Reset maze coins
+            for (let row = 0; row < ROWS; row++) {
+                for (let col = 0; col < COLS; col++) {
+                    if (maze[row][col] === 0) {
+                        // Add some coins back
+                        if (Math.random() > 0.3) {
+                            maze[row][col] = 2;
+                        }
+                    }
+                }
+            }
+            resetPositions();
+        }
+        
+        function updateUI() {
+            document.getElementById('score').textContent = score;
+            document.getElementById('lives').textContent = lives;
+            document.getElementById('level').textContent = level;
+        }
+        
+        function gameOver() {
+            gameRunning = false;
+            document.getElementById('finalScore').innerHTML = 
+                `Final Score: <span style="color: #FFD700">${score}</span><br>Level Reached: <span style="color: #FFD700">${level}</span>`;
+            document.getElementById('gameOver').style.display = 'block';
+        }
+        
+        let frameCount = 0;
+        
+        function gameLoop() {
+            if (!gameRunning) return;
+            
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            drawMaze();
+            drawPlayer();
+            drawEnemies();
+            
+            frameCount++;
+            
+            // Move player every 7 frames
+            if (frameCount % 7 === 0) {
+                movePlayer();
+            }
+            
+            // Move enemies every 8 frames
+            if (frameCount % 8 === 0) {
+                moveEnemies();
+            }
+            
+            checkCollision();
+            
+            // Update power-up
+            if (powerUpActive) {
+                powerUpTimer--;
+                if (powerUpTimer <= 0) {
+                    powerUpActive = false;
+                }
+            }
+            
+            requestAnimationFrame(gameLoop);
+        }
+        
+        // Start game
+        document.getElementById('startBtn').addEventListener('click', () => {
+            gameRunning = true;
+            score = 0;
+            lives = 3;
+            level = 1;
+            powerUpActive = false;
+            resetPositions();
+            updateUI();
+            document.getElementById('startBtn').style.display = 'none';
+            gameLoop();
+        });
+        
+        // Initial draw
+        drawMaze();
+        drawPlayer();
+        drawEnemies();
+    </script>
+</body>
+</html>

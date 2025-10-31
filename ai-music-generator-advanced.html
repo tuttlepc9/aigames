@@ -1,0 +1,1570 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced AI Music Generator</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 30px;
+            max-width: 1200px;
+            margin: 0 auto;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+
+        h1 {
+            text-align: center;
+            color: #667eea;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 1.1em;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .tab {
+            padding: 12px 24px;
+            background: white;
+            border: 2px solid #667eea;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: 600;
+            color: #667eea;
+        }
+
+        .tab:hover {
+            background: #f0f4ff;
+        }
+
+        .tab.active {
+            background: #667eea;
+            color: white;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .mode-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .mode-btn {
+            padding: 15px;
+            border: 2px solid #667eea;
+            background: white;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 0.95em;
+            font-weight: 600;
+            color: #667eea;
+        }
+
+        .mode-btn:hover {
+            background: #f0f4ff;
+            transform: translateY(-2px);
+        }
+
+        .mode-btn.active {
+            background: #667eea;
+            color: white;
+        }
+
+        .controls-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 25px;
+        }
+
+        .control-panel {
+            background: #f8f9ff;
+            padding: 20px;
+            border-radius: 15px;
+        }
+
+        .control-panel h3 {
+            color: #667eea;
+            margin-bottom: 15px;
+            font-size: 1.1em;
+        }
+
+        .control-group {
+            margin-bottom: 15px;
+        }
+
+        .control-group:last-child {
+            margin-bottom: 0;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 600;
+            font-size: 0.9em;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            height: 6px;
+            border-radius: 3px;
+            background: #ddd;
+            outline: none;
+            -webkit-appearance: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #667eea;
+            cursor: pointer;
+        }
+
+        input[type="range"]::-moz-range-thumb {
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #667eea;
+            cursor: pointer;
+            border: none;
+        }
+
+        select {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 0.95em;
+            background: white;
+            cursor: pointer;
+        }
+
+        .value-display {
+            float: right;
+            color: #667eea;
+            font-weight: 600;
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+
+        .action-bar {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        button {
+            padding: 15px 30px;
+            font-size: 1em;
+            font-weight: 600;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+            flex: 1;
+            min-width: 150px;
+        }
+
+        .generate-btn {
+            background: #667eea;
+            color: white;
+        }
+
+        .generate-btn:hover:not(:disabled) {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .stop-btn {
+            background: #ef4444;
+            color: white;
+        }
+
+        .stop-btn:hover:not(:disabled) {
+            background: #dc2626;
+        }
+
+        .record-btn {
+            background: #10b981;
+            color: white;
+        }
+
+        .record-btn:hover:not(:disabled) {
+            background: #059669;
+        }
+
+        .record-btn.recording {
+            background: #ef4444;
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+
+        .layer-btn {
+            background: #8b5cf6;
+            color: white;
+        }
+
+        .layer-btn:hover:not(:disabled) {
+            background: #7c3aed;
+        }
+
+        .download-btn {
+            background: #14b8a6;
+            color: white;
+        }
+
+        .download-btn:hover:not(:disabled) {
+            background: #0d9488;
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+
+        .visualizer-container {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .canvas-visualizer {
+            width: 100%;
+            height: 200px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 10px;
+        }
+
+        .layers-display {
+            background: #f8f9ff;
+            padding: 20px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+        }
+
+        .layers-display h3 {
+            color: #667eea;
+            margin-bottom: 15px;
+        }
+
+        .layer-item {
+            background: white;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border: 2px solid #e5e7eb;
+        }
+
+        .layer-info {
+            flex: 1;
+        }
+
+        .layer-name {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 4px;
+        }
+
+        .layer-details {
+            font-size: 0.85em;
+            color: #666;
+        }
+
+        .layer-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .layer-actions button {
+            padding: 6px 12px;
+            font-size: 0.85em;
+            min-width: auto;
+        }
+
+        .presets-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .preset-card {
+            background: white;
+            border: 2px solid #667eea;
+            border-radius: 10px;
+            padding: 15px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .preset-card:hover {
+            background: #f0f4ff;
+            transform: translateY(-2px);
+        }
+
+        .preset-name {
+            font-weight: 600;
+            color: #667eea;
+            margin-bottom: 5px;
+        }
+
+        .preset-desc {
+            font-size: 0.85em;
+            color: #666;
+        }
+
+        .info-box {
+            background: #e0e7ff;
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+            color: #4c1d95;
+        }
+
+        .chord-display {
+            background: white;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 10px;
+            border: 2px solid #e5e7eb;
+        }
+
+        .chord-progression {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .chord-box {
+            padding: 10px 15px;
+            background: #667eea;
+            color: white;
+            border-radius: 8px;
+            font-weight: 600;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 20px;
+            }
+
+            h1 {
+                font-size: 1.8em;
+            }
+
+            .controls-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .action-bar {
+                flex-direction: column;
+            }
+
+            button {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎵 Advanced AI Music Generator</h1>
+        <p class="subtitle">Create, layer, and record algorithmic music with effects</p>
+
+        <div class="tabs">
+            <button class="tab active" data-tab="create">Create Music</button>
+            <button class="tab" data-tab="effects">Effects & Mixing</button>
+            <button class="tab" data-tab="presets">Presets</button>
+            <button class="tab" data-tab="layers">Layers</button>
+        </div>
+
+        <!-- CREATE TAB -->
+        <div class="tab-content active" data-content="create">
+            <div class="mode-grid">
+                <button class="mode-btn active" data-mode="melody">🎹 Melody</button>
+                <button class="mode-btn" data-mode="chords">🎸 Chords</button>
+                <button class="mode-btn" data-mode="bass">🎵 Bass Line</button>
+                <button class="mode-btn" data-mode="arpeggio">✨ Arpeggio</button>
+                <button class="mode-btn" data-mode="ambient">🌊 Ambient</button>
+                <button class="mode-btn" data-mode="rhythm">🥁 Rhythm</button>
+                <button class="mode-btn" data-mode="pad">🎹 Pad</button>
+                <button class="mode-btn" data-mode="pluck">🪕 Pluck</button>
+            </div>
+
+            <div class="controls-grid">
+                <div class="control-panel">
+                    <h3>Musical Parameters</h3>
+                    <div class="control-group">
+                        <label>Tempo (BPM): <span class="value-display" id="tempo-value">120</span></label>
+                        <input type="range" id="tempo" min="40" max="220" value="120">
+                    </div>
+                    <div class="control-group">
+                        <label>Complexity: <span class="value-display" id="complexity-value">5</span></label>
+                        <input type="range" id="complexity" min="1" max="10" value="5">
+                    </div>
+                    <div class="control-group">
+                        <label>Scale:</label>
+                        <select id="scale">
+                            <option value="major">Major (Happy)</option>
+                            <option value="minor">Minor (Sad)</option>
+                            <option value="dorian">Dorian (Jazz)</option>
+                            <option value="mixolydian">Mixolydian (Rock)</option>
+                            <option value="pentatonic">Pentatonic (Eastern)</option>
+                            <option value="blues">Blues</option>
+                            <option value="harmonic-minor">Harmonic Minor</option>
+                            <option value="phrygian">Phrygian (Spanish)</option>
+                            <option value="chromatic">Chromatic (Experimental)</option>
+                        </select>
+                    </div>
+                    <div class="control-group">
+                        <label>Root Note:</label>
+                        <select id="root-note">
+                            <option value="C">C</option>
+                            <option value="C#">C#/Db</option>
+                            <option value="D">D</option>
+                            <option value="D#">D#/Eb</option>
+                            <option value="E">E</option>
+                            <option value="F">F</option>
+                            <option value="F#">F#/Gb</option>
+                            <option value="G">G</option>
+                            <option value="G#">G#/Ab</option>
+                            <option value="A">A</option>
+                            <option value="A#">A#/Bb</option>
+                            <option value="B">B</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="control-panel">
+                    <h3>Sound Settings</h3>
+                    <div class="control-group">
+                        <label>Waveform:</label>
+                        <select id="waveform">
+                            <option value="sine">Sine (Pure)</option>
+                            <option value="triangle">Triangle (Soft)</option>
+                            <option value="square">Square (Retro)</option>
+                            <option value="sawtooth">Sawtooth (Bright)</option>
+                        </select>
+                    </div>
+                    <div class="control-group">
+                        <label>Duration (sec): <span class="value-display" id="duration-value">10</span></label>
+                        <input type="range" id="duration" min="5" max="90" value="10">
+                    </div>
+                    <div class="control-group">
+                        <label>Volume: <span class="value-display" id="volume-value">70</span>%</label>
+                        <input type="range" id="volume" min="0" max="100" value="70">
+                    </div>
+                    <div class="control-group">
+                        <label>Octave Range: <span class="value-display" id="octave-value">2</span></label>
+                        <input type="range" id="octave-range" min="1" max="4" value="2">
+                    </div>
+                </div>
+
+                <div class="control-panel">
+                    <h3>Advanced Options</h3>
+                    <div class="control-group checkbox-group">
+                        <input type="checkbox" id="chord-progression">
+                        <label for="chord-progression" style="margin: 0;">Use Chord Progression</label>
+                    </div>
+                    <div class="control-group checkbox-group">
+                        <input type="checkbox" id="swing" checked>
+                        <label for="swing" style="margin: 0;">Add Swing Feel</label>
+                    </div>
+                    <div class="control-group checkbox-group">
+                        <input type="checkbox" id="humanize" checked>
+                        <label for="humanize" style="margin: 0;">Humanize Timing</label>
+                    </div>
+                    <div class="control-group">
+                        <label>Note Density: <span class="value-display" id="density-value">50</span>%</label>
+                        <input type="range" id="density" min="10" max="100" value="50">
+                    </div>
+                </div>
+            </div>
+
+            <div id="chord-display" class="chord-display" style="display: none;">
+                <strong>Current Progression:</strong>
+                <div class="chord-progression" id="progression-display"></div>
+            </div>
+        </div>
+
+        <!-- EFFECTS TAB -->
+        <div class="tab-content" data-content="effects">
+            <div class="controls-grid">
+                <div class="control-panel">
+                    <h3>Reverb</h3>
+                    <div class="control-group checkbox-group">
+                        <input type="checkbox" id="reverb-enable">
+                        <label for="reverb-enable" style="margin: 0;">Enable Reverb</label>
+                    </div>
+                    <div class="control-group">
+                        <label>Room Size: <span class="value-display" id="reverb-value">50</span>%</label>
+                        <input type="range" id="reverb-amount" min="0" max="100" value="50">
+                    </div>
+                    <div class="control-group">
+                        <label>Decay Time: <span class="value-display" id="decay-value">2.0</span>s</label>
+                        <input type="range" id="reverb-decay" min="0.5" max="5" step="0.1" value="2">
+                    </div>
+                </div>
+
+                <div class="control-panel">
+                    <h3>Delay</h3>
+                    <div class="control-group checkbox-group">
+                        <input type="checkbox" id="delay-enable">
+                        <label for="delay-enable" style="margin: 0;">Enable Delay</label>
+                    </div>
+                    <div class="control-group">
+                        <label>Delay Time: <span class="value-display" id="delay-time-value">0.5</span>s</label>
+                        <input type="range" id="delay-time" min="0.1" max="2" step="0.1" value="0.5">
+                    </div>
+                    <div class="control-group">
+                        <label>Feedback: <span class="value-display" id="feedback-value">40</span>%</label>
+                        <input type="range" id="delay-feedback" min="0" max="90" value="40">
+                    </div>
+                </div>
+
+                <div class="control-panel">
+                    <h3>Filter</h3>
+                    <div class="control-group">
+                        <label>Filter Type:</label>
+                        <select id="filter-type">
+                            <option value="lowpass">Low Pass</option>
+                            <option value="highpass">High Pass</option>
+                            <option value="bandpass">Band Pass</option>
+                            <option value="notch">Notch</option>
+                        </select>
+                    </div>
+                    <div class="control-group">
+                        <label>Cutoff: <span class="value-display" id="cutoff-value">2000</span>Hz</label>
+                        <input type="range" id="filter-cutoff" min="100" max="10000" value="2000">
+                    </div>
+                    <div class="control-group">
+                        <label>Resonance: <span class="value-display" id="resonance-value">1</span></label>
+                        <input type="range" id="filter-resonance" min="0.1" max="30" step="0.1" value="1">
+                    </div>
+                </div>
+
+                <div class="control-panel">
+                    <h3>Distortion</h3>
+                    <div class="control-group checkbox-group">
+                        <input type="checkbox" id="distortion-enable">
+                        <label for="distortion-enable" style="margin: 0;">Enable Distortion</label>
+                    </div>
+                    <div class="control-group">
+                        <label>Amount: <span class="value-display" id="distortion-value">20</span></label>
+                        <input type="range" id="distortion-amount" min="0" max="100" value="20">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- PRESETS TAB -->
+        <div class="tab-content" data-content="presets">
+            <h3 style="margin-bottom: 15px; color: #667eea;">Quick Start Presets</h3>
+            <div class="presets-grid">
+                <div class="preset-card" data-preset="chill">
+                    <div class="preset-name">🌙 Chill Vibes</div>
+                    <div class="preset-desc">Relaxed ambient melody with reverb</div>
+                </div>
+                <div class="preset-card" data-preset="energetic">
+                    <div class="preset-name">⚡ Energetic</div>
+                    <div class="preset-desc">Fast-paced upbeat rhythm</div>
+                </div>
+                <div class="preset-card" data-preset="dreamy">
+                    <div class="preset-name">☁️ Dreamy</div>
+                    <div class="preset-desc">Ethereal pad with delay</div>
+                </div>
+                <div class="preset-card" data-preset="jazz">
+                    <div class="preset-name">🎷 Jazz</div>
+                    <div class="preset-desc">Swing rhythm with chord progression</div>
+                </div>
+                <div class="preset-card" data-preset="minimal">
+                    <div class="preset-name">⬜ Minimal</div>
+                    <div class="preset-desc">Simple pluck pattern</div>
+                </div>
+                <div class="preset-card" data-preset="epic">
+                    <div class="preset-name">🎬 Epic</div>
+                    <div class="preset-desc">Dramatic pads and bass</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- LAYERS TAB -->
+        <div class="tab-content" data-content="layers">
+            <div class="layers-display">
+                <h3>Active Layers (<span id="layer-count">0</span>)</h3>
+                <div id="layers-list">
+                    <div style="text-align: center; color: #666; padding: 20px;">
+                        No layers yet. Generate music and click "Add as Layer" to build your composition!
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- VISUALIZER -->
+        <div class="visualizer-container">
+            <canvas id="visualizer" class="canvas-visualizer"></canvas>
+        </div>
+
+        <!-- ACTION BUTTONS -->
+        <div class="action-bar">
+            <button class="generate-btn" id="generate">Generate Music</button>
+            <button class="layer-btn" id="add-layer" disabled>Add as Layer</button>
+            <button class="record-btn" id="record">Record</button>
+            <button class="stop-btn" id="stop" disabled>Stop All</button>
+            <button class="download-btn" id="download" disabled>Download WAV</button>
+        </div>
+
+        <div class="info-box" id="info">
+            Choose a mode, adjust settings, and click "Generate Music" to create!
+        </div>
+    </div>
+
+    <script>
+        // Audio Engine
+        let audioContext;
+        let isPlaying = false;
+        let currentMode = 'melody';
+        let scheduledSources = [];
+        let layers = [];
+        let mediaRecorder;
+        let recordedChunks = [];
+        let currentAudioBuffer = null;
+
+        // Musical scales
+        const scales = {
+            major: [0, 2, 4, 5, 7, 9, 11, 12],
+            minor: [0, 2, 3, 5, 7, 8, 10, 12],
+            dorian: [0, 2, 3, 5, 7, 9, 10, 12],
+            mixolydian: [0, 2, 4, 5, 7, 9, 10, 12],
+            pentatonic: [0, 2, 4, 7, 9, 12],
+            blues: [0, 3, 5, 6, 7, 10, 12],
+            'harmonic-minor': [0, 2, 3, 5, 7, 8, 11, 12],
+            phrygian: [0, 1, 3, 5, 7, 8, 10, 12],
+            chromatic: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+        };
+
+        const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+        const chordProgressions = {
+            major: ['I', 'V', 'vi', 'IV'],
+            minor: ['i', 'VI', 'III', 'VII'],
+            jazz: ['ii', 'V', 'I', 'VI']
+        };
+
+        // Initialize
+        function initAudio() {
+            if (!audioContext) {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            }
+        }
+
+        // Get frequency from MIDI note
+        function getFrequency(midiNote) {
+            return 440 * Math.pow(2, (midiNote - 69) / 12);
+        }
+
+        // Get root note MIDI number
+        function getRootMidi() {
+            const rootNote = document.getElementById('root-note').value;
+            const baseOctave = 4;
+            const noteIndex = noteNames.indexOf(rootNote);
+            return 12 * baseOctave + noteIndex;
+        }
+
+        // Create effects chain
+        function createEffectsChain() {
+            const chain = [];
+            
+            // Filter
+            const filter = audioContext.createBiquadFilter();
+            filter.type = document.getElementById('filter-type').value;
+            filter.frequency.value = parseFloat(document.getElementById('filter-cutoff').value);
+            filter.Q.value = parseFloat(document.getElementById('filter-resonance').value);
+            chain.push(filter);
+
+            // Distortion
+            if (document.getElementById('distortion-enable').checked) {
+                const distortion = audioContext.createWaveShaper();
+                const amount = parseFloat(document.getElementById('distortion-amount').value);
+                distortion.curve = makeDistortionCurve(amount);
+                chain.push(distortion);
+            }
+
+            // Delay
+            if (document.getElementById('delay-enable').checked) {
+                const delay = audioContext.createDelay();
+                const delayFeedback = audioContext.createGain();
+                const delayMix = audioContext.createGain();
+                
+                delay.delayTime.value = parseFloat(document.getElementById('delay-time').value);
+                delayFeedback.gain.value = parseFloat(document.getElementById('delay-feedback').value) / 100;
+                
+                delay.connect(delayFeedback);
+                delayFeedback.connect(delay);
+                delay.connect(delayMix);
+                
+                chain.push({ delay, delayMix });
+            }
+
+            // Reverb (simplified)
+            if (document.getElementById('reverb-enable').checked) {
+                const convolver = audioContext.createConvolver();
+                const reverbAmount = parseFloat(document.getElementById('reverb-amount').value) / 100;
+                const decayTime = parseFloat(document.getElementById('reverb-decay').value);
+                convolver.buffer = createReverbImpulse(audioContext, decayTime, reverbAmount);
+                chain.push(convolver);
+            }
+
+            return chain;
+        }
+
+        function makeDistortionCurve(amount) {
+            const samples = 44100;
+            const curve = new Float32Array(samples);
+            const deg = Math.PI / 180;
+            
+            for (let i = 0; i < samples; i++) {
+                const x = (i * 2) / samples - 1;
+                curve[i] = (3 + amount) * x * 20 * deg / (Math.PI + amount * Math.abs(x));
+            }
+            return curve;
+        }
+
+        function createReverbImpulse(context, duration, decay) {
+            const sampleRate = context.sampleRate;
+            const length = sampleRate * duration;
+            const impulse = context.createBuffer(2, length, sampleRate);
+            
+            for (let channel = 0; channel < 2; channel++) {
+                const channelData = impulse.getChannelData(channel);
+                for (let i = 0; i < length; i++) {
+                    channelData[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / length, decay);
+                }
+            }
+            return impulse;
+        }
+
+        // Create note with effects
+        function createNote(frequency, startTime, duration, volume = 0.3) {
+            const osc = audioContext.createOscillator();
+            const gain = audioContext.createGain();
+            const waveform = document.getElementById('waveform').value;
+            
+            osc.type = waveform;
+            osc.frequency.setValueAtTime(frequency, startTime);
+            
+            const volMultiplier = parseFloat(document.getElementById('volume').value) / 100;
+            const finalVolume = volume * volMultiplier;
+            
+            // ADSR envelope
+            gain.gain.setValueAtTime(0, startTime);
+            gain.gain.linearRampToValueAtTime(finalVolume, startTime + 0.01);
+            gain.gain.exponentialRampToValueAtTime(finalVolume * 0.7, startTime + duration * 0.3);
+            gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+            
+            osc.connect(gain);
+            
+            // Apply effects
+            const effects = createEffectsChain();
+            let currentNode = gain;
+            
+            effects.forEach(effect => {
+                if (effect.delay) {
+                    currentNode.connect(effect.delay);
+                    effect.delay.connect(effect.delayMix);
+                    currentNode.connect(effect.delayMix);
+                    currentNode = effect.delayMix;
+                } else {
+                    currentNode.connect(effect);
+                    currentNode = effect;
+                }
+            });
+            
+            currentNode.connect(audioContext.destination);
+            
+            osc.start(startTime);
+            osc.stop(startTime + duration);
+            
+            scheduledSources.push({ osc, gain });
+            return { osc, gain };
+        }
+
+        // Generate chord
+        function generateChord(rootMidi, chordType, startTime, duration) {
+            const intervals = chordType === 'major' ? [0, 4, 7] : [0, 3, 7];
+            intervals.forEach(interval => {
+                const freq = getFrequency(rootMidi + interval);
+                createNote(freq, startTime, duration, 0.2);
+            });
+        }
+
+        // Generate melody
+        function generateMelody(tempo, complexity, scale, duration) {
+            const beatDuration = 60 / tempo;
+            const notes = scales[scale];
+            const rootMidi = getRootMidi();
+            const octaveRange = parseInt(document.getElementById('octave-range').value);
+            const density = parseFloat(document.getElementById('density').value) / 100;
+            const humanize = document.getElementById('humanize').checked;
+            const swing = document.getElementById('swing').checked;
+            
+            let currentTime = audioContext.currentTime;
+            const endTime = currentTime + duration;
+            let lastNote = Math.floor(notes.length / 2);
+            let beatCount = 0;
+            
+            while (currentTime < endTime) {
+                if (Math.random() < density) {
+                    // Choose note
+                    let noteIndex;
+                    if (Math.random() < 0.7) {
+                        const step = Math.floor(Math.random() * 3) - 1;
+                        noteIndex = Math.max(0, Math.min(notes.length - 1, lastNote + step));
+                    } else {
+                        noteIndex = Math.floor(Math.random() * notes.length);
+                    }
+                    
+                    const octaveOffset = Math.floor(Math.random() * octaveRange) * 12;
+                    const midiNote = rootMidi + notes[noteIndex] + octaveOffset;
+                    const frequency = getFrequency(midiNote);
+                    
+                    const durationVariation = complexity / 10;
+                    let noteDuration = beatDuration * (0.3 + Math.random() * durationVariation);
+                    
+                    // Humanization
+                    let noteStartTime = currentTime;
+                    if (humanize) {
+                        noteStartTime += (Math.random() - 0.5) * 0.02;
+                    }
+                    
+                    createNote(frequency, noteStartTime, noteDuration);
+                    lastNote = noteIndex;
+                }
+                
+                let stepDuration = beatDuration / 2;
+                
+                // Swing
+                if (swing && beatCount % 2 === 1) {
+                    stepDuration *= 1.1;
+                }
+                
+                currentTime += stepDuration;
+                beatCount++;
+            }
+        }
+
+        // Generate chords
+        function generateChords(tempo, scale, duration) {
+            const beatDuration = 60 / tempo;
+            const rootMidi = getRootMidi();
+            const useProgression = document.getElementById('chord-progression').checked;
+            
+            let currentTime = audioContext.currentTime;
+            const endTime = currentTime + duration;
+            let chordIndex = 0;
+            
+            const scaleType = scale.includes('minor') ? 'minor' : 'major';
+            const progression = chordProgressions[scaleType];
+            
+            while (currentTime < endTime) {
+                const chordRoot = rootMidi + (chordIndex * 2) % 12;
+                const chordType = Math.random() < 0.7 ? 'major' : 'minor';
+                
+                generateChord(chordRoot, chordType, currentTime, beatDuration * 4);
+                
+                currentTime += beatDuration * 4;
+                chordIndex = (chordIndex + 1) % progression.length;
+            }
+        }
+
+        // Generate bass line
+        function generateBass(tempo, scale, duration) {
+            const beatDuration = 60 / tempo;
+            const notes = scales[scale];
+            const rootMidi = getRootMidi() - 12; // One octave lower
+            
+            let currentTime = audioContext.currentTime;
+            const endTime = currentTime + duration;
+            
+            while (currentTime < endTime) {
+                const noteIndex = Math.floor(Math.random() * Math.min(4, notes.length));
+                const midiNote = rootMidi + notes[noteIndex];
+                const frequency = getFrequency(midiNote);
+                
+                createNote(frequency, currentTime, beatDuration * 0.9, 0.4);
+                currentTime += beatDuration;
+            }
+        }
+
+        // Generate arpeggio
+        function generateArpeggio(tempo, scale, duration) {
+            const beatDuration = 60 / tempo / 4;
+            const notes = scales[scale];
+            const rootMidi = getRootMidi();
+            const octaveRange = parseInt(document.getElementById('octave-range').value);
+            
+            let currentTime = audioContext.currentTime;
+            const endTime = currentTime + duration;
+            let direction = 1;
+            let noteIndex = 0;
+            
+            while (currentTime < endTime) {
+                const octaveOffset = Math.floor(noteIndex / notes.length) * 12;
+                const midiNote = rootMidi + notes[noteIndex % notes.length] + octaveOffset;
+                const frequency = getFrequency(midiNote);
+                
+                createNote(frequency, currentTime, beatDuration * 0.8, 0.25);
+                
+                noteIndex += direction;
+                if (noteIndex >= notes.length * octaveRange || noteIndex < 0) {
+                    direction *= -1;
+                    noteIndex = Math.max(0, Math.min(noteIndex, notes.length * octaveRange - 1));
+                }
+                
+                currentTime += beatDuration;
+            }
+        }
+
+        // Generate ambient pad
+        function generateAmbient(complexity, duration) {
+            const currentTime = audioContext.currentTime;
+            const layers = Math.max(3, Math.floor(complexity / 2));
+            
+            for (let i = 0; i < layers; i++) {
+                const baseFreq = 100 + Math.random() * 300;
+                const detune = (Math.random() - 0.5) * 10;
+                
+                const osc1 = audioContext.createOscillator();
+                const osc2 = audioContext.createOscillator();
+                const gain = audioContext.createGain();
+                const filter = audioContext.createBiquadFilter();
+                
+                osc1.type = 'sine';
+                osc2.type = 'sine';
+                osc1.frequency.setValueAtTime(baseFreq, currentTime);
+                osc2.frequency.setValueAtTime(baseFreq + detune, currentTime);
+                
+                filter.type = 'lowpass';
+                filter.frequency.setValueAtTime(1000 + Math.random() * 2000, currentTime);
+                filter.Q.value = 5;
+                
+                const volMultiplier = parseFloat(document.getElementById('volume').value) / 100;
+                gain.gain.setValueAtTime(0, currentTime);
+                gain.gain.linearRampToValueAtTime((0.1 / layers) * volMultiplier, currentTime + 2);
+                gain.gain.setValueAtTime((0.1 / layers) * volMultiplier, currentTime + duration - 2);
+                gain.gain.linearRampToValueAtTime(0.001, currentTime + duration);
+                
+                osc1.connect(filter);
+                osc2.connect(filter);
+                filter.connect(gain);
+                gain.connect(audioContext.destination);
+                
+                osc1.start(currentTime);
+                osc2.start(currentTime);
+                osc1.stop(currentTime + duration);
+                osc2.stop(currentTime + duration);
+                
+                scheduledSources.push({ osc: osc1, gain });
+                scheduledSources.push({ osc: osc2, gain });
+                
+                // LFO
+                const lfo = audioContext.createOscillator();
+                const lfoGain = audioContext.createGain();
+                lfo.frequency.setValueAtTime(0.1 + Math.random() * 0.5, currentTime);
+                lfoGain.gain.setValueAtTime(500, currentTime);
+                lfo.connect(lfoGain);
+                lfoGain.connect(filter.frequency);
+                lfo.start(currentTime);
+                lfo.stop(currentTime + duration);
+            }
+        }
+
+        // Generate rhythm
+        function generateRhythm(tempo, complexity, duration) {
+            const beatDuration = 60 / tempo;
+            let currentTime = audioContext.currentTime;
+            const endTime = currentTime + duration;
+            
+            const patterns = [
+                [1, 0, 0, 1],
+                [1, 0, 1, 0],
+                [1, 0, 0, 1, 0, 0, 1, 0],
+                [1, 1, 0, 1]
+            ];
+            
+            const pattern = patterns[Math.min(Math.floor(complexity / 3), patterns.length - 1)];
+            let patternIndex = 0;
+            
+            while (currentTime < endTime) {
+                if (pattern[patternIndex % pattern.length]) {
+                    // Kick
+                    const osc = audioContext.createOscillator();
+                    const gain = audioContext.createGain();
+                    
+                    osc.frequency.setValueAtTime(150, currentTime);
+                    osc.frequency.exponentialRampToValueAtTime(50, currentTime + 0.1);
+                    
+                    const volMultiplier = parseFloat(document.getElementById('volume').value) / 100;
+                    gain.gain.setValueAtTime(volMultiplier, currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.001, currentTime + 0.2);
+                    
+                    osc.connect(gain);
+                    gain.connect(audioContext.destination);
+                    
+                    osc.start(currentTime);
+                    osc.stop(currentTime + 0.2);
+                    
+                    scheduledSources.push({ osc, gain });
+                    
+                    // Hi-hat
+                    if (Math.random() < complexity / 10) {
+                        const noise = audioContext.createBufferSource();
+                        const buffer = audioContext.createBuffer(1, audioContext.sampleRate * 0.05, audioContext.sampleRate);
+                        const data = buffer.getChannelData(0);
+                        for (let i = 0; i < data.length; i++) {
+                            data[i] = Math.random() * 2 - 1;
+                        }
+                        noise.buffer = buffer;
+                        
+                        const noiseGain = audioContext.createGain();
+                        const filter = audioContext.createBiquadFilter();
+                        filter.type = 'highpass';
+                        filter.frequency.setValueAtTime(8000, currentTime);
+                        
+                        noiseGain.gain.setValueAtTime(0.1 * volMultiplier, currentTime);
+                        noiseGain.gain.exponentialRampToValueAtTime(0.001, currentTime + 0.05);
+                        
+                        noise.connect(filter);
+                        filter.connect(noiseGain);
+                        noiseGain.connect(audioContext.destination);
+                        
+                        noise.start(currentTime);
+                    }
+                }
+                
+                currentTime += beatDuration / 2;
+                patternIndex++;
+            }
+        }
+
+        // Generate pad
+        function generatePad(scale, duration) {
+            const notes = scales[scale];
+            const rootMidi = getRootMidi();
+            const currentTime = audioContext.currentTime;
+            
+            // Generate chord tones
+            [0, 2, 4].forEach((interval, i) => {
+                const midiNote = rootMidi + notes[interval];
+                const frequency = getFrequency(midiNote);
+                
+                const osc = audioContext.createOscillator();
+                const gain = audioContext.createGain();
+                
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(frequency, currentTime);
+                
+                const volMultiplier = parseFloat(document.getElementById('volume').value) / 100;
+                gain.gain.setValueAtTime(0, currentTime);
+                gain.gain.linearRampToValueAtTime(0.15 * volMultiplier, currentTime + 1);
+                gain.gain.setValueAtTime(0.15 * volMultiplier, currentTime + duration - 1);
+                gain.gain.linearRampToValueAtTime(0.001, currentTime + duration);
+                
+                osc.connect(gain);
+                gain.connect(audioContext.destination);
+                
+                osc.start(currentTime);
+                osc.stop(currentTime + duration);
+                
+                scheduledSources.push({ osc, gain });
+            });
+        }
+
+        // Generate pluck
+        function generatePluck(tempo, scale, duration) {
+            const beatDuration = 60 / tempo;
+            const notes = scales[scale];
+            const rootMidi = getRootMidi();
+            const density = parseFloat(document.getElementById('density').value) / 100;
+            
+            let currentTime = audioContext.currentTime;
+            const endTime = currentTime + duration;
+            
+            while (currentTime < endTime) {
+                if (Math.random() < density) {
+                    const noteIndex = Math.floor(Math.random() * notes.length);
+                    const midiNote = rootMidi + notes[noteIndex];
+                    const frequency = getFrequency(midiNote);
+                    
+                    const osc = audioContext.createOscillator();
+                    const gain = audioContext.createGain();
+                    
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(frequency, currentTime);
+                    
+                    const volMultiplier = parseFloat(document.getElementById('volume').value) / 100;
+                    gain.gain.setValueAtTime(0.3 * volMultiplier, currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.001, currentTime + 0.5);
+                    
+                    osc.connect(gain);
+                    gain.connect(audioContext.destination);
+                    
+                    osc.start(currentTime);
+                    osc.stop(currentTime + 0.5);
+                    
+                    scheduledSources.push({ osc, gain });
+                }
+                
+                currentTime += beatDuration / 4;
+            }
+        }
+
+        // Visualizer
+        const canvas = document.getElementById('visualizer');
+        const ctx = canvas.getContext('2d');
+        let animationId;
+
+        function resizeCanvas() {
+            canvas.width = canvas.offsetWidth;
+            canvas.height = canvas.offsetHeight;
+        }
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+
+        function drawVisualizer() {
+            if (!isPlaying) {
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                return;
+            }
+
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            const barCount = 60;
+            const barWidth = canvas.width / barCount;
+
+            for (let i = 0; i < barCount; i++) {
+                const height = Math.random() * canvas.height * 0.8;
+                const hue = (i / barCount) * 360;
+                
+                ctx.fillStyle = `hsla(${hue}, 70%, 60%, 0.8)`;
+                ctx.fillRect(i * barWidth, canvas.height - height, barWidth - 2, height);
+            }
+
+            animationId = requestAnimationFrame(drawVisualizer);
+        }
+
+        // Layer management
+        function addLayer() {
+            const layer = {
+                id: Date.now(),
+                mode: currentMode,
+                settings: {
+                    tempo: document.getElementById('tempo').value,
+                    scale: document.getElementById('scale').value,
+                    duration: document.getElementById('duration').value
+                }
+            };
+            
+            layers.push(layer);
+            updateLayersDisplay();
+            document.getElementById('info').textContent = `Layer added! Total layers: ${layers.length}`;
+        }
+
+        function updateLayersDisplay() {
+            const container = document.getElementById('layers-list');
+            document.getElementById('layer-count').textContent = layers.length;
+            
+            if (layers.length === 0) {
+                container.innerHTML = '<div style="text-align: center; color: #666; padding: 20px;">No layers yet. Generate music and click "Add as Layer" to build your composition!</div>';
+                return;
+            }
+            
+            container.innerHTML = layers.map(layer => `
+                <div class="layer-item">
+                    <div class="layer-info">
+                        <div class="layer-name">${layer.mode.toUpperCase()}</div>
+                        <div class="layer-details">
+                            ${layer.settings.scale} scale • ${layer.settings.tempo} BPM • ${layer.settings.duration}s
+                        </div>
+                    </div>
+                    <div class="layer-actions">
+                        <button onclick="removeLayer(${layer.id})" style="background: #ef4444; color: white;">Remove</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function removeLayer(id) {
+            layers = layers.filter(l => l.id !== id);
+            updateLayersDisplay();
+        }
+
+        function playAllLayers() {
+            layers.forEach(layer => {
+                // Recreate each layer's settings and play
+                const tempo = layer.settings.tempo;
+                const scale = layer.settings.scale;
+                const duration = layer.settings.duration;
+                
+                switch(layer.mode) {
+                    case 'melody':
+                        generateMelody(tempo, 5, scale, duration);
+                        break;
+                    case 'bass':
+                        generateBass(tempo, scale, duration);
+                        break;
+                    // Add other modes as needed
+                }
+            });
+        }
+
+        // Preset system
+        const presets = {
+            chill: {
+                mode: 'ambient',
+                tempo: 80,
+                scale: 'minor',
+                waveform: 'sine',
+                complexity: 4,
+                'reverb-enable': true,
+                'reverb-amount': 70
+            },
+            energetic: {
+                mode: 'rhythm',
+                tempo: 140,
+                scale: 'major',
+                complexity: 8
+            },
+            dreamy: {
+                mode: 'pad',
+                tempo: 60,
+                scale: 'major',
+                waveform: 'sine',
+                'reverb-enable': true,
+                'delay-enable': true
+            },
+            jazz: {
+                mode: 'melody',
+                tempo: 120,
+                scale: 'dorian',
+                complexity: 7,
+                swing: true,
+                'chord-progression': true
+            },
+            minimal: {
+                mode: 'pluck',
+                tempo: 100,
+                scale: 'pentatonic',
+                complexity: 3,
+                density: 30
+            },
+            epic: {
+                mode: 'pad',
+                tempo: 90,
+                scale: 'minor',
+                complexity: 8,
+                'reverb-enable': true
+            }
+        };
+
+        function applyPreset(presetName) {
+            const preset = presets[presetName];
+            
+            // Set mode
+            document.querySelectorAll('.mode-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.mode === preset.mode);
+            });
+            currentMode = preset.mode;
+            
+            // Apply settings
+            Object.keys(preset).forEach(key => {
+                const element = document.getElementById(key);
+                if (element) {
+                    if (element.type === 'checkbox') {
+                        element.checked = preset[key];
+                    } else {
+                        element.value = preset[key];
+                        const valueDisplay = document.getElementById(`${key}-value`);
+                        if (valueDisplay) {
+                            valueDisplay.textContent = preset[key];
+                        }
+                    }
+                }
+            });
+            
+            // Switch to create tab
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.toggle('active', tab.dataset.tab === 'create');
+            });
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.toggle('active', content.dataset.content === 'create');
+            });
+            
+            document.getElementById('info').textContent = `Applied ${presetName} preset! Click Generate to play.`;
+        }
+
+        // Recording
+        function startRecording() {
+            const dest = audioContext.createMediaStreamDestination();
+            const allNodes = audioContext.destination;
+            
+            // This is simplified - in production you'd need to route all audio through dest
+            mediaRecorder = new MediaRecorder(dest.stream);
+            recordedChunks = [];
+            
+            mediaRecorder.ondataavailable = (e) => {
+                if (e.data.size > 0) {
+                    recordedChunks.push(e.data);
+                }
+            };
+            
+            mediaRecorder.onstop = () => {
+                const blob = new Blob(recordedChunks, { type: 'audio/webm' });
+                const url = URL.createObjectURL(blob);
+                currentAudioBuffer = url;
+                document.getElementById('download').disabled = false;
+                document.getElementById('info').textContent = 'Recording complete! Click Download to save.';
+            };
+            
+            mediaRecorder.start();
+            document.getElementById('record').classList.add('recording');
+            document.getElementById('record').textContent = 'Recording...';
+        }
+
+        function stopRecording() {
+            if (mediaRecorder && mediaRecorder.state === 'recording') {
+                mediaRecorder.stop();
+                document.getElementById('record').classList.remove('recording');
+                document.getElementById('record').textContent = 'Record';
+            }
+        }
+
+        // Event Listeners
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                const targetTab = tab.dataset.tab;
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                tab.classList.add('active');
+                document.querySelector(`[data-content="${targetTab}"]`).classList.add('active');
+            });
+        });
+
+        document.querySelectorAll('.mode-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                currentMode = btn.dataset.mode;
+            });
+        });
+
+        // Range inputs
+        ['tempo', 'complexity', 'duration', 'volume', 'octave-range', 'density',
+         'reverb-amount', 'reverb-decay', 'delay-time', 'delay-feedback',
+         'filter-cutoff', 'filter-resonance', 'distortion-amount'].forEach(id => {
+            const input = document.getElementById(id);
+            if (input) {
+                input.addEventListener('input', (e) => {
+                    const valueDisplay = document.getElementById(`${id}-value`);
+                    if (valueDisplay) {
+                        valueDisplay.textContent = e.target.value;
+                    }
+                });
+            }
+        });
+
+        // Chord progression display
+        document.getElementById('chord-progression').addEventListener('change', (e) => {
+            const display = document.getElementById('chord-display');
+            if (e.target.checked) {
+                display.style.display = 'block';
+                const scale = document.getElementById('scale').value;
+                const scaleType = scale.includes('minor') ? 'minor' : 'major';
+                const progression = chordProgressions[scaleType];
+                document.getElementById('progression-display').innerHTML = 
+                    progression.map(chord => `<div class="chord-box">${chord}</div>`).join('');
+            } else {
+                display.style.display = 'none';
+            }
+        });
+
+        // Preset cards
+        document.querySelectorAll('.preset-card').forEach(card => {
+            card.addEventListener('click', () => {
+                applyPreset(card.dataset.preset);
+            });
+        });
+
+        // Generate button
+        document.getElementById('generate').addEventListener('click', () => {
+            initAudio();
+            
+            // Clear previous sources
+            scheduledSources.forEach(source => {
+                try {
+                    if (source.osc) source.osc.stop();
+                } catch(e) {}
+            });
+            scheduledSources = [];
+            
+            const tempo = parseInt(document.getElementById('tempo').value);
+            const complexity = parseInt(document.getElementById('complexity').value);
+            const scale = document.getElementById('scale').value;
+            const duration = parseInt(document.getElementById('duration').value);
+            
+            isPlaying = true;
+            document.getElementById('generate').disabled = true;
+            document.getElementById('stop').disabled = false;
+            document.getElementById('add-layer').disabled = false;
+            document.getElementById('info').textContent = `Playing ${currentMode} for ${duration} seconds...`;
+            
+            drawVisualizer();
+            
+            switch(currentMode) {
+                case 'melody':
+                    generateMelody(tempo, complexity, scale, duration);
+                    break;
+                case 'chords':
+                    generateChords(tempo, scale, duration);
+                    break;
+                case 'bass':
+                    generateBass(tempo, scale, duration);
+                    break;
+                case 'arpeggio':
+                    generateArpeggio(tempo, scale, duration);
+                    break;
+                case 'ambient':
+                    generateAmbient(complexity, duration);
+                    break;
+                case 'rhythm':
+                    generateRhythm(tempo, complexity, duration);
+                    break;
+                case 'pad':
+                    generatePad(scale, duration);
+                    break;
+                case 'pluck':
+                    generatePluck(tempo, scale, duration);
+                    break;
+            }
+            
+            setTimeout(() => {
+                isPlaying = false;
+                document.getElementById('generate').disabled = false;
+                document.getElementById('stop').disabled = true;
+                document.getElementById('info').textContent = 'Complete! Generate more or add as layer.';
+                cancelAnimationFrame(animationId);
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+            }, duration * 1000);
+        });
+
+        // Add layer button
+        document.getElementById('add-layer').addEventListener('click', addLayer);
+
+        // Stop button
+        document.getElementById('stop').addEventListener('click', () => {
+            scheduledSources.forEach(source => {
+                try {
+                    if (source.osc) source.osc.stop();
+                    if (source.gain) source.gain.gain.setValueAtTime(0, audioContext.currentTime);
+                } catch(e) {}
+            });
+            
+            scheduledSources = [];
+            isPlaying = false;
+            document.getElementById('generate').disabled = false;
+            document.getElementById('stop').disabled = true;
+            document.getElementById('add-layer').disabled = true;
+            document.getElementById('info').textContent = 'Stopped. Ready to generate!';
+            
+            stopRecording();
+            cancelAnimationFrame(animationId);
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        });
+
+        // Record button
+        document.getElementById('record').addEventListener('click', () => {
+            if (!mediaRecorder || mediaRecorder.state === 'inactive') {
+                startRecording();
+            } else {
+                stopRecording();
+            }
+        });
+
+        // Download button
+        document.getElementById('download').addEventListener('click', () => {
+            if (currentAudioBuffer) {
+                const a = document.createElement('a');
+                a.href = currentAudioBuffer;
+                a.download = `ai-music-${Date.now()}.webm`;
+                a.click();
+            }
+        });
+
+        // Make removeLayer global
+        window.removeLayer = removeLayer;
+    </script>
+</body>
+</html>

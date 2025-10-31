@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tower Defense - Volcanic Fury</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #7f1d1d 0%, #991b1b 50%, #1c1917 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            color: white;
+        }
+        
+        #gameContainer {
+            text-align: center;
+        }
+        
+        h1 {
+            font-size: 42px;
+            margin-bottom: 10px;
+            text-shadow: 0 0 10px #ff6b00, 3px 3px 6px rgba(0, 0, 0, 0.5);
+            color: #fbbf24;
+        }
+        
+        #gameCanvas {
+            border: 4px solid rgba(255, 107, 0, 0.5);
+            border-radius: 10px;
+            background: #1c1917;
+            cursor: crosshair;
+            box-shadow: 0 0 20px rgba(255, 107, 0, 0.4), 0 8px 32px rgba(0, 0, 0, 0.4);
+        }
+        
+        #ui {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 20px;
+            padding: 15px;
+            background: rgba(255, 107, 0, 0.15);
+            border-radius: 10px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 107, 0, 0.3);
+        }
+        
+        .stat {
+            font-size: 20px;
+            font-weight: bold;
+            margin: 0 15px;
+        }
+        
+        .stat span {
+            color: #fbbf24;
+        }
+        
+        #towerSelect {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        
+        .tower-btn {
+            background: linear-gradient(135deg, #dc2626 0%, #ea580c 100%);
+            color: white;
+            border: 3px solid transparent;
+            padding: 15px 25px;
+            font-size: 16px;
+            font-weight: bold;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+        }
+        
+        .tower-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 0 15px rgba(234, 88, 12, 0.8);
+        }
+        
+        .tower-btn.selected {
+            border-color: #fbbf24;
+            transform: scale(1.05);
+            box-shadow: 0 0 20px rgba(251, 191, 36, 0.8);
+        }
+        
+        .tower-btn.disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        #startBtn {
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            font-size: 20px;
+            font-weight: bold;
+            border-radius: 50px;
+            cursor: pointer;
+            box-shadow: 0 0 15px rgba(245, 158, 11, 0.5);
+            transition: transform 0.2s;
+            margin-top: 15px;
+        }
+        
+        #startBtn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 0 25px rgba(245, 158, 11, 0.8);
+        }
+        
+        #gameOver {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.95);
+            padding: 40px;
+            border-radius: 20px;
+            font-size: 32px;
+            text-align: center;
+            z-index: 10;
+            border: 2px solid #ff6b00;
+            box-shadow: 0 0 30px rgba(255, 107, 0, 0.5);
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <h1>🌋 Tower Defense - Volcanic Fury</h1>
+        <canvas id="gameCanvas" width="800" height="500"></canvas>
+        <div id="ui">
+            <div class="stat">🔥 Magma: <span id="gold">1000</span></div>
+            <div class="stat">❤️ Lives: <span id="lives">20</span></div>
+            <div class="stat">🌊 Wave: <span id="wave">0</span></div>
+        </div>
+        <div id="towerSelect">
+            <button class="tower-btn" data-type="basic">Flame Tower ($50)</button>
+            <button class="tower-btn" data-type="heavy">Magma Cannon ($100)</button>
+            <button class="tower-btn" data-type="rapid">Ember Tower ($75)</button>
+        </div>
+        <button id="startBtn">Start Wave</button>
+        <div id="gameOver"></div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Game state
+        let gold = 1000;
+        let lives = 20;
+        let wave = 0;
+        let selectedTower = null;
+        let gameRunning = false;
+        let enemies = [];
+        let towers = [];
+        let projectiles = [];
+        let lavaGlow = 0;
+        
+        // Winding lava river path
+        const path = [
+            {x: 0, y: 100},
+            {x: 120, y: 80},
+            {x: 200, y: 120},
+            {x: 250, y: 200},
+            {x: 220, y: 280},
+            {x: 280, y: 350},
+            {x: 380, y: 380},
+            {x: 480, y: 340},
+            {x: 550, y: 280},
+            {x: 600, y: 200},
+            {x: 680, y: 150},
+            {x: 750, y: 180},
+            {x: 800, y: 220}
+        ];
+        
+        // Tower types
+        const towerTypes = {
+            basic: {cost: 50, damage: 10, range: 100, fireRate: 1000, color: '#f97316'},
+            heavy: {cost: 100, damage: 30, range: 120, fireRate: 2000, color: '#dc2626'},
+            rapid: {cost: 75, damage: 5, range: 90, fireRate: 300, color: '#fbbf24'}
+        };
+        
+        class Enemy {
+            constructor(health, speed, reward) {
+                this.health = health;
+                this.maxHealth = health;
+                this.speed = speed;
+                this.reward = reward;
+                this.pathIndex = 0;
+                this.x = path[0].x;
+                this.y = path[0].y;
+                this.radius = 12;
+                this.burnGlow = 0;
+            }
+            
+            update() {
+                if (this.pathIndex >= path.length - 1) {
+                    lives--;
+                    updateUI();
+                    return true; // Remove enemy
+                }
+                
+                const target = path[this.pathIndex + 1];
+                const dx = target.x - this.x;
+                const dy = target.y - this.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                
+                if (dist < this.speed) {
+                    this.pathIndex++;
+                } else {
+                    this.x += (dx / dist) * this.speed;
+                    this.y += (dy / dist) * this.speed;
+                }
+                
+                this.burnGlow = (Math.sin(Date.now() * 0.01) + 1) / 2;
+                return false;
+            }
+            
+            draw() {
+                // Fire demon/elemental creature
+                ctx.save();
+                
+                // Glow effect
+                ctx.shadowBlur = 15;
+                ctx.shadowColor = '#ff6b00';
+                
+                // Body
+                ctx.fillStyle = '#991b1b';
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Inner fire
+                ctx.fillStyle = `rgba(234, 88, 12, ${this.burnGlow})`;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius * 0.7, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Core
+                ctx.fillStyle = '#fef08a';
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius * 0.4, 0, Math.PI * 2);
+                ctx.fill();
+                
+                ctx.shadowBlur = 0;
+                ctx.restore();
+                
+                // Health bar
+                const healthPercent = this.health / this.maxHealth;
+                ctx.fillStyle = '#7f1d1d';
+                ctx.fillRect(this.x - 15, this.y - 20, 30, 4);
+                ctx.fillStyle = '#fbbf24';
+                ctx.fillRect(this.x - 15, this.y - 20, 30 * healthPercent, 4);
+            }
+            
+            takeDamage(damage) {
+                this.health -= damage;
+                if (this.health <= 0) {
+                    gold += this.reward;
+                    updateUI();
+                    return true;
+                }
+                return false;
+            }
+        }
+        
+        class Tower {
+            constructor(x, y, type) {
+                this.x = x;
+                this.y = y;
+                this.type = type;
+                this.lastFire = 0;
+                this.target = null;
+                this.heatGlow = 0;
+            }
+            
+            update(timestamp) {
+                // Find target
+                this.target = null;
+                let closestDist = this.type.range;
+                
+                for (let enemy of enemies) {
+                    const dist = Math.sqrt((enemy.x - this.x) ** 2 + (enemy.y - this.y) ** 2);
+                    if (dist < closestDist) {
+                        closestDist = dist;
+                        this.target = enemy;
+                    }
+                }
+                
+                // Fire at target
+                if (this.target && timestamp - this.lastFire > this.type.fireRate) {
+                    projectiles.push(new Projectile(this.x, this.y, this.target, this.type.damage, this.type.color));
+                    this.lastFire = timestamp;
+                    this.heatGlow = 1;
+                }
+                
+                this.heatGlow *= 0.95;
+            }
+            
+            draw() {
+                // Range circle (faint)
+                ctx.strokeStyle = 'rgba(251, 191, 36, 0.1)';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.type.range, 0, Math.PI * 2);
+                ctx.stroke();
+                
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                
+                // Volcanic tower base
+                ctx.fillStyle = '#292524';
+                ctx.beginPath();
+                ctx.moveTo(0, -25);
+                ctx.lineTo(-18, 15);
+                ctx.lineTo(18, 15);
+                ctx.closePath();
+                ctx.fill();
+                
+                // Lava cracks
+                ctx.strokeStyle = this.type.color;
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(-12, 0);
+                ctx.lineTo(-6, 10);
+                ctx.moveTo(0, -10);
+                ctx.lineTo(0, 5);
+                ctx.moveTo(12, 0);
+                ctx.lineTo(6, 10);
+                ctx.stroke();
+                
+                // Tower top/crater
+                if (this.heatGlow > 0) {
+                    ctx.shadowBlur = 20;
+                    ctx.shadowColor = this.type.color;
+                }
+                ctx.fillStyle = this.type.color;
+                ctx.beginPath();
+                ctx.arc(0, -15, 10, 0, Math.PI * 2);
+                ctx.fill();
+                
+                ctx.fillStyle = '#fef08a';
+                ctx.beginPath();
+                ctx.arc(0, -15, 6, 0, Math.PI * 2);
+                ctx.fill();
+                
+                ctx.shadowBlur = 0;
+                ctx.restore();
+                
+                // Targeting line
+                if (this.target) {
+                    ctx.strokeStyle = 'rgba(251, 191, 36, 0.3)';
+                    ctx.lineWidth = 2;
+                    ctx.setLineDash([5, 5]);
+                    ctx.beginPath();
+                    ctx.moveTo(this.x, this.y);
+                    ctx.lineTo(this.target.x, this.target.y);
+                    ctx.stroke();
+                    ctx.setLineDash([]);
+                }
+            }
+        }
+        
+        class Projectile {
+            constructor(x, y, target, damage, color) {
+                this.x = x;
+                this.y = y;
+                this.target = target;
+                this.damage = damage;
+                this.speed = 5;
+                this.color = color;
+                this.trail = [];
+            }
+            
+            update() {
+                if (!this.target || this.target.health <= 0) return true;
+                
+                this.trail.push({x: this.x, y: this.y});
+                if (this.trail.length > 5) this.trail.shift();
+                
+                const dx = this.target.x - this.x;
+                const dy = this.target.y - this.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                
+                if (dist < this.speed) {
+                    this.target.takeDamage(this.damage);
+                    return true;
+                }
+                
+                this.x += (dx / dist) * this.speed;
+                this.y += (dy / dist) * this.speed;
+                return false;
+            }
+            
+            draw() {
+                // Trail
+                this.trail.forEach((pos, i) => {
+                    const alpha = i / this.trail.length;
+                    ctx.fillStyle = `rgba(251, 191, 36, ${alpha * 0.5})`;
+                    ctx.beginPath();
+                    ctx.arc(pos.x, pos.y, 3, 0, Math.PI * 2);
+                    ctx.fill();
+                });
+                
+                // Fireball
+                ctx.shadowBlur = 15;
+                ctx.shadowColor = this.color;
+                ctx.fillStyle = this.color;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, 6, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Inner bright core
+                ctx.fillStyle = '#fef08a';
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, 4, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.shadowBlur = 0;
+            }
+        }
+        
+        function drawBackground() {
+            // Dark rocky ground
+            ctx.fillStyle = '#1c1917';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Add some rock texture
+            ctx.fillStyle = '#292524';
+            for (let i = 0; i < 50; i++) {
+                const x = Math.random() * canvas.width;
+                const y = Math.random() * canvas.height;
+                const size = Math.random() * 15 + 5;
+                ctx.beginPath();
+                ctx.arc(x, y, size, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+        
+        function drawPath() {
+            lavaGlow = (Math.sin(Date.now() * 0.003) + 1) / 2;
+            
+            // Outer dark lava
+            ctx.strokeStyle = '#7f1d1d';
+            ctx.lineWidth = 50;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            ctx.beginPath();
+            ctx.moveTo(path[0].x, path[0].y);
+            for (let i = 1; i < path.length; i++) {
+                ctx.lineTo(path[i].x, path[i].y);
+            }
+            ctx.stroke();
+            
+            // Middle glowing lava
+            ctx.shadowBlur = 20;
+            ctx.shadowColor = '#ff6b00';
+            ctx.strokeStyle = `rgba(220, 38, 38, ${0.7 + lavaGlow * 0.3})`;
+            ctx.lineWidth = 40;
+            ctx.beginPath();
+            ctx.moveTo(path[0].x, path[0].y);
+            for (let i = 1; i < path.length; i++) {
+                ctx.lineTo(path[i].x, path[i].y);
+            }
+            ctx.stroke();
+            
+            // Inner bright lava flow
+            ctx.strokeStyle = `rgba(251, 191, 36, ${0.8 + lavaGlow * 0.2})`;
+            ctx.lineWidth = 25;
+            ctx.beginPath();
+            ctx.moveTo(path[0].x, path[0].y);
+            for (let i = 1; i < path.length; i++) {
+                ctx.lineTo(path[i].x, path[i].y);
+            }
+            ctx.stroke();
+            
+            // Brightest center flow
+            ctx.strokeStyle = '#fef08a';
+            ctx.lineWidth = 10;
+            ctx.beginPath();
+            ctx.moveTo(path[0].x, path[0].y);
+            for (let i = 1; i < path.length; i++) {
+                ctx.lineTo(path[i].x, path[i].y);
+            }
+            ctx.stroke();
+            
+            ctx.shadowBlur = 0;
+        }
+        
+        function spawnWave() {
+            const enemyCount = 5 + wave * 2;
+            const health = 50 + wave * 20;
+            const speed = 1 + wave * 0.1;
+            const reward = 10 + wave * 2;
+            
+            for (let i = 0; i < enemyCount; i++) {
+                setTimeout(() => {
+                    enemies.push(new Enemy(health, speed, reward));
+                }, i * 1000);
+            }
+        }
+        
+        function updateUI() {
+            document.getElementById('gold').textContent = gold;
+            document.getElementById('lives').textContent = lives;
+            document.getElementById('wave').textContent = wave;
+            
+            // Update tower buttons
+            document.querySelectorAll('.tower-btn').forEach(btn => {
+                const type = btn.dataset.type;
+                const cost = towerTypes[type].cost;
+                btn.classList.toggle('disabled', gold < cost);
+            });
+        }
+        
+        function gameLoop(timestamp) {
+            // Draw background (only once at start for optimization)
+            if (!gameLoop.backgroundDrawn) {
+                drawBackground();
+                gameLoop.backgroundDrawn = true;
+            }
+            
+            // Clear only where needed or redraw background if running
+            if (gameRunning || towers.length > 0 || enemies.length > 0) {
+                drawBackground();
+            }
+            
+            // Draw animated lava path
+            drawPath();
+            
+            // Always draw towers (even when game isn't running)
+            towers.forEach(tower => {
+                if (gameRunning) {
+                    tower.update(timestamp);
+                }
+                tower.draw();
+            });
+            
+            // Only update game elements when running
+            if (gameRunning) {
+                // Update and draw enemies
+                enemies = enemies.filter(enemy => {
+                    const remove = enemy.update();
+                    if (!remove && enemy.health > 0) {
+                        enemy.draw();
+                        return true;
+                    }
+                    return false;
+                });
+                
+                // Update and draw projectiles
+                projectiles = projectiles.filter(proj => {
+                    const remove = proj.update();
+                    if (!remove) {
+                        proj.draw();
+                        return true;
+                    }
+                    return false;
+                });
+                
+                // Check for wave completion
+                if (enemies.length === 0) {
+                    gameRunning = false;
+                    document.getElementById('startBtn').style.display = 'block';
+                }
+                
+                // Check for game over
+                if (lives <= 0) {
+                    gameOver();
+                    return;
+                }
+            }
+            
+            requestAnimationFrame(gameLoop);
+        }
+        
+        function gameOver() {
+            gameRunning = false;
+            document.getElementById('gameOver').innerHTML = 
+                `🔥 Consumed by Lava!<br>Wave ${wave}<br><button onclick="location.reload()" style="margin-top:20px;padding:10px 30px;font-size:18px;cursor:pointer;border-radius:10px;border:none;background:#f59e0b;color:white;font-weight:bold;">Play Again</button>`;
+            document.getElementById('gameOver').style.display = 'block';
+        }
+        
+        // Tower selection
+        document.querySelectorAll('.tower-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const type = btn.dataset.type;
+                if (gold >= towerTypes[type].cost) {
+                    selectedTower = type;
+                    document.querySelectorAll('.tower-btn').forEach(b => b.classList.remove('selected'));
+                    btn.classList.add('selected');
+                }
+            });
+        });
+        
+        // Place tower
+        canvas.addEventListener('click', (e) => {
+            if (!selectedTower) return;
+            
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            
+            // Check if on path
+            const onPath = path.some((point, i) => {
+                if (i === path.length - 1) return false;
+                const next = path[i + 1];
+                const dist = distanceToSegment(x, y, point.x, point.y, next.x, next.y);
+                return dist < 30;
+            });
+            
+            if (onPath) return; // Can't place on path
+            
+            // Check if overlapping another tower
+            const overlapping = towers.some(tower => {
+                const dist = Math.sqrt((tower.x - x) ** 2 + (tower.y - y) ** 2);
+                return dist < 35;
+            });
+            
+            if (overlapping) return;
+            
+            const type = towerTypes[selectedTower];
+            if (gold >= type.cost) {
+                towers.push(new Tower(x, y, type));
+                gold -= type.cost;
+                updateUI();
+                selectedTower = null;
+                document.querySelectorAll('.tower-btn').forEach(b => b.classList.remove('selected'));
+            }
+        });
+        
+        function distanceToSegment(px, py, x1, y1, x2, y2) {
+            const dx = x2 - x1;
+            const dy = y2 - y1;
+            const t = Math.max(0, Math.min(1, ((px - x1) * dx + (py - y1) * dy) / (dx * dx + dy * dy)));
+            const nearestX = x1 + t * dx;
+            const nearestY = y1 + t * dy;
+            return Math.sqrt((px - nearestX) ** 2 + (py - nearestY) ** 2);
+        }
+        
+        // Start wave
+        document.getElementById('startBtn').addEventListener('click', () => {
+            wave++;
+            gameRunning = true;
+            spawnWave();
+            document.getElementById('startBtn').style.display = 'none';
+            updateUI();
+        });
+        
+        // Initial setup - start render loop
+        updateUI();
+        requestAnimationFrame(gameLoop);
+    </script>
+</body>
+</html>

@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gone Fishin'</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            color: white;
+        }
+        
+        #gameContainer {
+            text-align: center;
+        }
+        
+        h1 {
+            font-size: 42px;
+            margin-bottom: 10px;
+            text-shadow: 3px 3px 6px rgba(0, 0, 0, 0.5);
+        }
+        
+        #gameCanvas {
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-radius: 10px;
+            background: #1e40af;
+            cursor: none;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+        }
+        
+        #ui {
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            margin-top: 20px;
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            backdrop-filter: blur(10px);
+        }
+        
+        .stat {
+            font-size: 24px;
+            font-weight: bold;
+        }
+        
+        .stat span {
+            color: #fbbf24;
+        }
+        
+        #startBtn {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            font-size: 20px;
+            font-weight: bold;
+            border-radius: 50px;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+            transition: transform 0.2s;
+            margin-top: 15px;
+        }
+        
+        #startBtn:hover {
+            transform: translateY(-2px);
+        }
+        
+        .instructions {
+            color: white;
+            font-size: 16px;
+            margin-top: 15px;
+            opacity: 0.9;
+        }
+        
+        #catchMessage {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 36px;
+            font-weight: bold;
+            color: #fbbf24;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
+            display: none;
+            pointer-events: none;
+            animation: fadeOut 1s forwards;
+        }
+        
+        @keyframes fadeOut {
+            0% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+            100% { opacity: 0; transform: translate(-50%, -70%) scale(1.5); }
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <h1>🎣 Gone Fishin'</h1>
+        <div style="position: relative;">
+            <canvas id="gameCanvas" width="600" height="700"></canvas>
+            <div id="catchMessage"></div>
+        </div>
+        <div id="ui">
+            <div class="stat">🐟 Caught: <span id="caught">0</span></div>
+            <div class="stat">⏱️ Time: <span id="time">60</span>s</div>
+            <div class="stat">🏆 Score: <span id="score">0</span></div>
+        </div>
+        <button id="startBtn">Start Fishing</button>
+        <div class="instructions">Move mouse to control the hook! Hook fish by their mouths!</div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Game state
+        let gameRunning = false;
+        let caught = 0;
+        let score = 0;
+        let timeLeft = 60;
+        let mouseX = canvas.width / 2;
+        let mouseY = 100;
+        
+        // Fishing line
+        let hook = {
+            x: canvas.width / 2,
+            y: 100,
+            targetX: canvas.width / 2,
+            targetY: 100,
+            size: 8
+        };
+        
+        let fish = [];
+        let bubbles = [];
+        
+        // Mouse tracking
+        canvas.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            mouseX = e.clientX - rect.left;
+            mouseY = Math.max(120, e.clientY - rect.top); // Keep hook below water surface
+        });
+        
+        class Fish {
+            constructor() {
+                this.size = 20 + Math.random() * 30;
+                this.x = Math.random() > 0.5 ? -50 : canvas.width + 50;
+                this.y = 150 + Math.random() * (canvas.height - 200);
+                this.speed = 0.5 + Math.random() * 1.5;
+                this.direction = this.x < 0 ? 1 : -1;
+                this.swimOffset = Math.random() * Math.PI * 2;
+                this.color = this.getRandomFishColor();
+                this.points = Math.floor(this.size);
+                this.type = this.size > 35 ? 'big' : 'small';
+            }
+            
+            getRandomFishColor() {
+                const colors = [
+                    { body: '#ff6b6b', fin: '#ff5252' },
+                    { body: '#ffa500', fin: '#ff8c00' },
+                    { body: '#4ecdc4', fin: '#45b7d1' },
+                    { body: '#95e1d3', fin: '#38ada9' },
+                    { body: '#a29bfe', fin: '#6c5ce7' }
+                ];
+                return colors[Math.floor(Math.random() * colors.length)];
+            }
+            
+            update() {
+                this.x += this.speed * this.direction;
+                this.y += Math.sin(Date.now() * 0.002 + this.swimOffset) * 0.5;
+                
+                // Remove if off screen
+                if (this.direction > 0 && this.x > canvas.width + 50) return true;
+                if (this.direction < 0 && this.x < -50) return true;
+                return false;
+            }
+            
+            draw() {
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                if (this.direction < 0) ctx.scale(-1, 1);
+                
+                // Tail fin
+                ctx.fillStyle = this.color.fin;
+                ctx.beginPath();
+                ctx.moveTo(-this.size * 0.8, 0);
+                ctx.lineTo(-this.size * 1.2, -this.size * 0.4);
+                ctx.lineTo(-this.size * 1.2, this.size * 0.4);
+                ctx.closePath();
+                ctx.fill();
+                
+                // Body
+                ctx.fillStyle = this.color.body;
+                ctx.beginPath();
+                ctx.ellipse(0, 0, this.size * 0.8, this.size * 0.5, 0, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Top fin
+                ctx.fillStyle = this.color.fin;
+                ctx.beginPath();
+                ctx.moveTo(0, -this.size * 0.5);
+                ctx.lineTo(-this.size * 0.2, -this.size * 0.8);
+                ctx.lineTo(this.size * 0.2, -this.size * 0.5);
+                ctx.closePath();
+                ctx.fill();
+                
+                // Eye
+                ctx.fillStyle = '#ffffff';
+                ctx.beginPath();
+                ctx.arc(this.size * 0.4, -this.size * 0.2, this.size * 0.15, 0, Math.PI * 2);
+                ctx.fill();
+                
+                ctx.fillStyle = '#000000';
+                ctx.beginPath();
+                ctx.arc(this.size * 0.4, -this.size * 0.2, this.size * 0.08, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Mouth (this is where the hook needs to go!)
+                ctx.strokeStyle = '#000000';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(this.size * 0.7, 0, this.size * 0.15, 0.2, Math.PI - 0.2);
+                ctx.stroke();
+                
+                ctx.restore();
+            }
+            
+            getMouthPosition() {
+                // Return the actual position of the fish's mouth
+                const mouthX = this.x + (this.size * 0.7 * this.direction);
+                const mouthY = this.y;
+                return { x: mouthX, y: mouthY, radius: this.size * 0.2 };
+            }
+        }
+        
+        class Bubble {
+            constructor() {
+                this.x = Math.random() * canvas.width;
+                this.y = canvas.height;
+                this.radius = 2 + Math.random() * 4;
+                this.speed = 0.5 + Math.random() * 1;
+                this.wobble = Math.random() * Math.PI * 2;
+            }
+            
+            update() {
+                this.y -= this.speed;
+                this.x += Math.sin(this.wobble) * 0.5;
+                this.wobble += 0.05;
+                return this.y < 100; // Remove if reaches surface
+            }
+            
+            draw() {
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fill();
+                
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+                ctx.beginPath();
+                ctx.arc(this.x - this.radius * 0.3, this.y - this.radius * 0.3, this.radius * 0.3, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+        
+        function drawWater() {
+            // Water
+            const gradient = ctx.createLinearGradient(0, 100, 0, canvas.height);
+            gradient.addColorStop(0, '#3b82f6');
+            gradient.addColorStop(0.5, '#2563eb');
+            gradient.addColorStop(1, '#1e40af');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 100, canvas.width, canvas.height - 100);
+            
+            // Dock/Shore at top
+            ctx.fillStyle = '#92400e';
+            ctx.fillRect(0, 0, canvas.width, 100);
+            
+            // Wood planks
+            ctx.strokeStyle = '#78350f';
+            ctx.lineWidth = 2;
+            for (let x = 0; x < canvas.width; x += 60) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, 100);
+                ctx.stroke();
+            }
+            
+            // Water surface
+            ctx.strokeStyle = '#60a5fa';
+            ctx.lineWidth = 3;
+            ctx.setLineDash([10, 10]);
+            ctx.beginPath();
+            ctx.moveTo(0, 100);
+            for (let x = 0; x < canvas.width; x += 20) {
+                ctx.lineTo(x, 100 + Math.sin(x * 0.1 + Date.now() * 0.003) * 3);
+            }
+            ctx.stroke();
+            ctx.setLineDash([]);
+        }
+        
+        function drawFishingLine() {
+            // Fishing rod (at top)
+            const rodX = canvas.width / 2;
+            ctx.strokeStyle = '#78350f';
+            ctx.lineWidth = 6;
+            ctx.beginPath();
+            ctx.moveTo(rodX - 30, 50);
+            ctx.lineTo(rodX + 30, 30);
+            ctx.stroke();
+            
+            // Fishing line
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(rodX + 30, 30);
+            ctx.lineTo(hook.x, hook.y);
+            ctx.stroke();
+            
+            // Hook
+            ctx.save();
+            ctx.translate(hook.x, hook.y);
+            
+            // Hook body
+            ctx.strokeStyle = '#94a3b8';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.arc(0, 0, hook.size, Math.PI * 0.2, Math.PI * 1.8);
+            ctx.stroke();
+            
+            // Hook point
+            ctx.beginPath();
+            ctx.moveTo(hook.size * 0.5, hook.size * 0.7);
+            ctx.lineTo(hook.size * 0.8, hook.size * 0.3);
+            ctx.stroke();
+            
+            // Hook eye (where line attaches)
+            ctx.fillStyle = '#94a3b8';
+            ctx.beginPath();
+            ctx.arc(0, -hook.size, 3, 0, Math.PI * 2);
+            ctx.fill();
+            
+            ctx.restore();
+        }
+        
+        function updateHook() {
+            // Smooth movement towards mouse
+            hook.targetX = mouseX;
+            hook.targetY = mouseY;
+            
+            hook.x += (hook.targetX - hook.x) * 0.1;
+            hook.y += (hook.targetY - hook.y) * 0.1;
+            
+            // Keep hook in water bounds
+            hook.x = Math.max(20, Math.min(canvas.width - 20, hook.x));
+            hook.y = Math.max(120, Math.min(canvas.height - 20, hook.y));
+        }
+        
+        function checkCatch() {
+            for (let i = fish.length - 1; i >= 0; i--) {
+                const f = fish[i];
+                const mouth = f.getMouthPosition();
+                
+                const dx = hook.x - mouth.x;
+                const dy = hook.y - mouth.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                
+                if (dist < mouth.radius + hook.size) {
+                    // Caught a fish!
+                    caught++;
+                    score += f.points;
+                    updateUI();
+                    showCatchMessage(f);
+                    fish.splice(i, 1);
+                    
+                    // Spawn a new fish
+                    fish.push(new Fish());
+                }
+            }
+        }
+        
+        function showCatchMessage(fish) {
+            const msg = document.getElementById('catchMessage');
+            const fishType = fish.type === 'big' ? 'Big' : 'Small';
+            msg.textContent = `${fishType} Fish! +${fish.points} pts`;
+            msg.style.display = 'block';
+            msg.style.animation = 'none';
+            setTimeout(() => {
+                msg.style.animation = 'fadeOut 1s forwards';
+            }, 10);
+            setTimeout(() => {
+                msg.style.display = 'none';
+            }, 1000);
+        }
+        
+        function spawnFish() {
+            if (fish.length < 5) {
+                fish.push(new Fish());
+            }
+        }
+        
+        function spawnBubbles() {
+            if (Math.random() > 0.95) {
+                bubbles.push(new Bubble());
+            }
+        }
+        
+        function updateUI() {
+            document.getElementById('caught').textContent = caught;
+            document.getElementById('score').textContent = score;
+            document.getElementById('time').textContent = timeLeft;
+        }
+        
+        function gameOver() {
+            gameRunning = false;
+            document.getElementById('startBtn').textContent = `Game Over! Score: ${score} - Play Again`;
+            document.getElementById('startBtn').style.display = 'block';
+        }
+        
+        let lastTime = Date.now();
+        let timerAccumulator = 0;
+        
+        function gameLoop() {
+            if (!gameRunning) return;
+            
+            const now = Date.now();
+            const delta = now - lastTime;
+            lastTime = now;
+            
+            // Timer countdown
+            timerAccumulator += delta;
+            if (timerAccumulator >= 1000) {
+                timeLeft--;
+                updateUI();
+                timerAccumulator = 0;
+                
+                if (timeLeft <= 0) {
+                    gameOver();
+                    return;
+                }
+            }
+            
+            // Draw water and background
+            drawWater();
+            
+            // Update and draw bubbles
+            spawnBubbles();
+            bubbles = bubbles.filter(bubble => {
+                const remove = bubble.update();
+                if (!remove) {
+                    bubble.draw();
+                }
+                return !remove;
+            });
+            
+            // Update and draw fish
+            spawnFish();
+            fish = fish.filter(f => {
+                const remove = f.update();
+                if (!remove) {
+                    f.draw();
+                }
+                return !remove;
+            });
+            
+            // Update and draw fishing line and hook
+            updateHook();
+            drawFishingLine();
+            
+            // Check for catches
+            checkCatch();
+            
+            requestAnimationFrame(gameLoop);
+        }
+        
+        // Start game
+        document.getElementById('startBtn').addEventListener('click', () => {
+            gameRunning = true;
+            caught = 0;
+            score = 0;
+            timeLeft = 60;
+            fish = [];
+            bubbles = [];
+            hook.x = canvas.width / 2;
+            hook.y = 100;
+            lastTime = Date.now();
+            timerAccumulator = 0;
+            
+            // Spawn initial fish
+            for (let i = 0; i < 5; i++) {
+                fish.push(new Fish());
+            }
+            
+            updateUI();
+            document.getElementById('startBtn').style.display = 'none';
+            gameLoop();
+        });
+        
+        // Initial draw
+        drawWater();
+        drawFishingLine();
+    </script>
+</body>
+</html>

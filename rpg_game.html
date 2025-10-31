@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RPG Launcher Game</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background: #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            font-family: Arial, sans-serif;
+        }
+        canvas {
+            border: 2px solid #333;
+            cursor: crosshair;
+            max-width: 100%;
+            max-height: 100vh;
+        }
+        #controls {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: white;
+            background: rgba(0,0,0,0.7);
+            padding: 15px;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+        #stats {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            color: white;
+            background: rgba(0,0,0,0.7);
+            padding: 15px;
+            border-radius: 8px;
+            font-size: 16px;
+            min-width: 150px;
+        }
+    </style>
+</head>
+<body>
+    <div id="controls">
+        <strong>🚀 RPG Launcher</strong><br>
+        Click anywhere to fire!<br>
+        Power: <span id="power">70</span>%<br>
+        <button onclick="changePower(-10)">-</button>
+        <button onclick="changePower(10)">+</button>
+    </div>
+    <div id="stats">
+        <strong>Stats</strong><br>
+        Shots: <span id="shots">0</span><br>
+        Hits: <span id="hits">0</span>
+    </div>
+    <canvas id="gameCanvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Set canvas size
+        canvas.width = 1200;
+        canvas.height = 700;
+        
+        // Game state
+        let power = 70;
+        let shots = 0;
+        let hits = 0;
+        let projectiles = [];
+        let explosions = [];
+        let backgroundImg = new Image();
+        let imgLoaded = false;
+        
+        // Load background image
+        backgroundImg.onload = function() {
+            imgLoaded = true;
+            gameLoop();
+        };
+        backgroundImg.src = '/mnt/user-data/uploads/1761869246698_image.png';
+        
+        // Projectile class
+        class Projectile {
+            constructor(x, y, targetX, targetY, power) {
+                this.x = x;
+                this.y = y;
+                this.startX = x;
+                this.startY = y;
+                this.targetX = targetX;
+                this.targetY = targetY;
+                this.progress = 0;
+                this.speed = power / 100 * 0.03;
+                this.active = true;
+                this.trail = [];
+            }
+            
+            update() {
+                this.progress += this.speed;
+                
+                // Parabolic trajectory
+                const t = this.progress;
+                this.x = this.startX + (this.targetX - this.startX) * t;
+                
+                // Add arc to trajectory
+                const peak = -200;
+                const arc = 4 * peak * t * (1 - t);
+                this.y = this.startY + (this.targetY - this.startY) * t + arc;
+                
+                // Add to trail
+                this.trail.push({x: this.x, y: this.y});
+                if (this.trail.length > 15) this.trail.shift();
+                
+                if (this.progress >= 1) {
+                    this.active = false;
+                    explosions.push(new Explosion(this.targetX, this.targetY));
+                    hits++;
+                    updateStats();
+                }
+            }
+            
+            draw() {
+                // Draw trail
+                ctx.strokeStyle = 'rgba(255, 150, 0, 0.5)';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                for (let i = 0; i < this.trail.length; i++) {
+                    const point = this.trail[i];
+                    if (i === 0) {
+                        ctx.moveTo(point.x, point.y);
+                    } else {
+                        ctx.lineTo(point.x, point.y);
+                    }
+                }
+                ctx.stroke();
+                
+                // Draw rocket
+                ctx.save();
+                const angle = Math.atan2(this.targetY - this.y, this.targetX - this.x);
+                ctx.translate(this.x, this.y);
+                ctx.rotate(angle);
+                
+                // Rocket body
+                ctx.fillStyle = '#444';
+                ctx.fillRect(-15, -3, 30, 6);
+                
+                // Rocket nose
+                ctx.fillStyle = '#666';
+                ctx.beginPath();
+                ctx.moveTo(15, 0);
+                ctx.lineTo(20, -4);
+                ctx.lineTo(20, 4);
+                ctx.closePath();
+                ctx.fill();
+                
+                // Flame
+                ctx.fillStyle = `rgba(255, ${100 + Math.random() * 100}, 0, 0.8)`;
+                ctx.beginPath();
+                ctx.moveTo(-15, 0);
+                ctx.lineTo(-25 - Math.random() * 10, -5);
+                ctx.lineTo(-25 - Math.random() * 10, 5);
+                ctx.closePath();
+                ctx.fill();
+                
+                ctx.restore();
+            }
+        }
+        
+        // Explosion class
+        class Explosion {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.radius = 0;
+                this.maxRadius = 80;
+                this.life = 1;
+                this.particles = [];
+                
+                // Create particles
+                for (let i = 0; i < 30; i++) {
+                    const angle = (Math.PI * 2 * i) / 30;
+                    const speed = 2 + Math.random() * 3;
+                    this.particles.push({
+                        x: this.x,
+                        y: this.y,
+                        vx: Math.cos(angle) * speed,
+                        vy: Math.sin(angle) * speed,
+                        life: 1
+                    });
+                }
+            }
+            
+            update() {
+                this.life -= 0.02;
+                this.radius += 3;
+                
+                this.particles.forEach(p => {
+                    p.x += p.vx;
+                    p.y += p.vy;
+                    p.vy += 0.1; // gravity
+                    p.life -= 0.02;
+                });
+            }
+            
+            draw() {
+                // Draw main explosion
+                const gradient = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, this.radius);
+                gradient.addColorStop(0, `rgba(255, 255, 0, ${this.life * 0.8})`);
+                gradient.addColorStop(0.4, `rgba(255, 100, 0, ${this.life * 0.6})`);
+                gradient.addColorStop(1, `rgba(255, 0, 0, 0)`);
+                
+                ctx.fillStyle = gradient;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Draw particles
+                this.particles.forEach(p => {
+                    if (p.life > 0) {
+                        ctx.fillStyle = `rgba(255, ${150 + Math.random() * 100}, 0, ${p.life})`;
+                        ctx.beginPath();
+                        ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+                });
+            }
+            
+            isDead() {
+                return this.life <= 0;
+            }
+        }
+        
+        // Handle clicks
+        canvas.addEventListener('click', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const x = (e.clientX - rect.left) * (canvas.width / rect.width);
+            const y = (e.clientY - rect.top) * (canvas.height / rect.height);
+            
+            // Launch from bottom center
+            const launchX = canvas.width / 2;
+            const launchY = canvas.height - 50;
+            
+            projectiles.push(new Projectile(launchX, launchY, x, y, power));
+            shots++;
+            updateStats();
+        });
+        
+        function changePower(delta) {
+            power = Math.max(30, Math.min(100, power + delta));
+            document.getElementById('power').textContent = power;
+        }
+        
+        function updateStats() {
+            document.getElementById('shots').textContent = shots;
+            document.getElementById('hits').textContent = hits;
+        }
+        
+        // Game loop
+        function gameLoop() {
+            // Draw background
+            if (imgLoaded) {
+                ctx.drawImage(backgroundImg, 0, 0, canvas.width, canvas.height);
+            } else {
+                ctx.fillStyle = '#87CEEB';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+            }
+            
+            // Update and draw projectiles
+            projectiles = projectiles.filter(p => {
+                if (p.active) {
+                    p.update();
+                    p.draw();
+                    return true;
+                }
+                return false;
+            });
+            
+            // Update and draw explosions
+            explosions = explosions.filter(e => {
+                e.update();
+                e.draw();
+                return !e.isDead();
+            });
+            
+            // Draw launcher
+            ctx.fillStyle = '#333';
+            ctx.fillRect(canvas.width / 2 - 20, canvas.height - 60, 40, 60);
+            ctx.fillStyle = '#666';
+            ctx.fillRect(canvas.width / 2 - 30, canvas.height - 65, 60, 10);
+            
+            requestAnimationFrame(gameLoop);
+        }
+        
+        // Start game loop once image loads
+        if (imgLoaded) {
+            gameLoop();
+        }
+    </script>
+</body>
+</html>

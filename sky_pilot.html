@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sky Pilot</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(180deg, #1e3a8a 0%, #3b82f6 50%, #fbbf24 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+        
+        #gameContainer {
+            text-align: center;
+            position: relative;
+        }
+        
+        h1 {
+            font-size: 48px;
+            color: white;
+            margin-bottom: 10px;
+            text-shadow: 3px 3px 6px rgba(0, 0, 0, 0.5);
+        }
+        
+        #gameCanvas {
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-radius: 10px;
+            background: linear-gradient(180deg, #87ceeb 0%, #e0f2fe 100%);
+            cursor: none;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+        }
+        
+        #ui {
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            margin-top: 20px;
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            backdrop-filter: blur(10px);
+            color: white;
+        }
+        
+        .stat {
+            font-size: 24px;
+            font-weight: bold;
+        }
+        
+        .stat span {
+            color: #FFD700;
+        }
+        
+        #startBtn {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            font-size: 20px;
+            font-weight: bold;
+            border-radius: 50px;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+            transition: transform 0.2s;
+            margin-top: 15px;
+        }
+        
+        #startBtn:hover {
+            transform: translateY(-2px);
+        }
+        
+        #gameOver {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.9);
+            padding: 40px;
+            border-radius: 20px;
+            color: white;
+            z-index: 10;
+        }
+        
+        #gameOver h2 {
+            font-size: 36px;
+            margin-bottom: 20px;
+        }
+        
+        #gameOver button {
+            background: #38ef7d;
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            font-size: 18px;
+            font-weight: bold;
+            border-radius: 10px;
+            cursor: pointer;
+            margin-top: 20px;
+        }
+        
+        .instructions {
+            color: white;
+            font-size: 16px;
+            margin-top: 15px;
+            opacity: 0.9;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <h1>✈️ Sky Pilot</h1>
+        <canvas id="gameCanvas" width="800" height="500"></canvas>
+        <div id="ui">
+            <div class="stat">⭐ Score: <span id="score">0</span></div>
+            <div class="stat">💰 Coins: <span id="coins">0</span></div>
+        </div>
+        <button id="startBtn">Start Flight</button>
+        <div class="instructions">Use your mouse or arrow keys to fly! Collect coins, avoid obstacles!</div>
+        <div id="gameOver">
+            <h2>✈️ Flight Ended!</h2>
+            <p id="finalScore"></p>
+            <button onclick="location.reload()">Fly Again</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Game state
+        let gameRunning = false;
+        let score = 0;
+        let coins = 0;
+        let plane = {
+            x: 150,
+            y: 250,
+            width: 50,
+            height: 25,
+            velocityY: 0,
+            targetY: 250
+        };
+        
+        let obstacles = [];
+        let collectibles = [];
+        let clouds = [];
+        let lastObstacleTime = 0;
+        let lastCollectibleTime = 0;
+        
+        // Mouse/keyboard controls
+        let mouseY = 250;
+        let keys = {};
+        
+        canvas.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            mouseY = e.clientY - rect.top;
+        });
+        
+        document.addEventListener('keydown', (e) => {
+            keys[e.key] = true;
+        });
+        
+        document.addEventListener('keyup', (e) => {
+            keys[e.key] = false;
+        });
+        
+        // Cloud class for background
+        class Cloud {
+            constructor() {
+                this.x = canvas.width + Math.random() * 200;
+                this.y = Math.random() * canvas.height;
+                this.width = 60 + Math.random() * 40;
+                this.height = 30 + Math.random() * 20;
+                this.speed = 0.5 + Math.random() * 1;
+                this.opacity = 0.3 + Math.random() * 0.4;
+            }
+            
+            update() {
+                this.x -= this.speed;
+                if (this.x + this.width < 0) {
+                    this.x = canvas.width + 100;
+                    this.y = Math.random() * canvas.height;
+                }
+            }
+            
+            draw() {
+                ctx.fillStyle = `rgba(255, 255, 255, ${this.opacity})`;
+                ctx.beginPath();
+                ctx.ellipse(this.x, this.y, this.width / 2, this.height / 2, 0, 0, Math.PI * 2);
+                ctx.ellipse(this.x + 20, this.y - 10, this.width / 3, this.height / 3, 0, 0, Math.PI * 2);
+                ctx.ellipse(this.x - 20, this.y - 5, this.width / 3, this.height / 3, 0, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+        
+        // Obstacle class
+        class Obstacle {
+            constructor(type) {
+                this.x = canvas.width;
+                this.width = 40;
+                this.speed = 3 + score / 100;
+                this.type = type; // 'top' or 'bottom'
+                
+                if (type === 'top') {
+                    this.height = 100 + Math.random() * 150;
+                    this.y = 0;
+                } else {
+                    this.height = 100 + Math.random() * 150;
+                    this.y = canvas.height - this.height;
+                }
+            }
+            
+            update() {
+                this.x -= this.speed;
+            }
+            
+            draw() {
+                // Mountain/building obstacle
+                ctx.fillStyle = '#4a5568';
+                ctx.fillRect(this.x, this.y, this.width, this.height);
+                
+                // Highlight
+                ctx.fillStyle = '#718096';
+                ctx.fillRect(this.x, this.y, 5, this.height);
+            }
+            
+            collidesWith(plane) {
+                return plane.x < this.x + this.width &&
+                       plane.x + plane.width > this.x &&
+                       plane.y < this.y + this.height &&
+                       plane.y + plane.height > this.y;
+            }
+        }
+        
+        // Collectible class
+        class Collectible {
+            constructor() {
+                this.x = canvas.width;
+                this.y = 50 + Math.random() * (canvas.height - 100);
+                this.radius = 15;
+                this.speed = 3 + score / 100;
+                this.angle = 0;
+            }
+            
+            update() {
+                this.x -= this.speed;
+                this.angle += 0.1;
+            }
+            
+            draw() {
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                ctx.rotate(this.angle);
+                
+                // Coin
+                ctx.fillStyle = '#FFD700';
+                ctx.beginPath();
+                ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Shine
+                ctx.fillStyle = '#FFF';
+                ctx.beginPath();
+                ctx.arc(-5, -5, 5, 0, Math.PI * 2);
+                ctx.fill();
+                
+                ctx.restore();
+            }
+            
+            collidesWith(plane) {
+                const centerX = plane.x + plane.width / 2;
+                const centerY = plane.y + plane.height / 2;
+                const distance = Math.sqrt((centerX - this.x) ** 2 + (centerY - this.y) ** 2);
+                return distance < this.radius + 15;
+            }
+        }
+        
+        function drawPlane() {
+            ctx.save();
+            ctx.translate(plane.x + plane.width / 2, plane.y + plane.height / 2);
+            
+            // Body
+            ctx.fillStyle = '#ef4444';
+            ctx.fillRect(-25, -10, 50, 20);
+            
+            // Wings
+            ctx.fillStyle = '#dc2626';
+            ctx.fillRect(-15, -20, 30, 40);
+            
+            // Cockpit
+            ctx.fillStyle = '#60a5fa';
+            ctx.beginPath();
+            ctx.arc(10, 0, 8, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Tail
+            ctx.fillStyle = '#dc2626';
+            ctx.beginPath();
+            ctx.moveTo(-25, 0);
+            ctx.lineTo(-35, -15);
+            ctx.lineTo(-35, 15);
+            ctx.closePath();
+            ctx.fill();
+            
+            // Nose
+            ctx.fillStyle = '#fbbf24';
+            ctx.beginPath();
+            ctx.arc(25, 0, 5, 0, Math.PI * 2);
+            ctx.fill();
+            
+            ctx.restore();
+        }
+        
+        function spawnObstacles() {
+            const now = Date.now();
+            if (now - lastObstacleTime > 2000) {
+                const type = Math.random() > 0.5 ? 'top' : 'bottom';
+                obstacles.push(new Obstacle(type));
+                lastObstacleTime = now;
+            }
+        }
+        
+        function spawnCollectibles() {
+            const now = Date.now();
+            if (now - lastCollectibleTime > 1500) {
+                collectibles.push(new Collectible());
+                lastCollectibleTime = now;
+            }
+        }
+        
+        function updatePlane() {
+            // Keyboard controls
+            if (keys['ArrowUp'] || keys['w'] || keys['W']) {
+                plane.targetY -= 5;
+            }
+            if (keys['ArrowDown'] || keys['s'] || keys['S']) {
+                plane.targetY += 5;
+            }
+            
+            // Mouse controls (smoother)
+            if (mouseY !== plane.targetY) {
+                plane.targetY = mouseY;
+            }
+            
+            // Smooth movement
+            const diff = plane.targetY - plane.y;
+            plane.velocityY = diff * 0.1;
+            plane.y += plane.velocityY;
+            
+            // Boundaries
+            if (plane.y < 0) plane.y = 0;
+            if (plane.y + plane.height > canvas.height) plane.y = canvas.height - plane.height;
+        }
+        
+        function checkCollisions() {
+            // Check obstacle collisions
+            for (let obstacle of obstacles) {
+                if (obstacle.collidesWith(plane)) {
+                    gameOver();
+                    return;
+                }
+            }
+            
+            // Check collectible collisions
+            for (let i = collectibles.length - 1; i >= 0; i--) {
+                if (collectibles[i].collidesWith(plane)) {
+                    coins++;
+                    score += 10;
+                    updateUI();
+                    collectibles.splice(i, 1);
+                }
+            }
+        }
+        
+        function updateUI() {
+            document.getElementById('score').textContent = score;
+            document.getElementById('coins').textContent = coins;
+        }
+        
+        function gameOver() {
+            gameRunning = false;
+            document.getElementById('finalScore').innerHTML = 
+                `Score: <span style="color: #FFD700">${score}</span><br>Coins: <span style="color: #FFD700">${coins}</span>`;
+            document.getElementById('gameOver').style.display = 'block';
+        }
+        
+        function gameLoop() {
+            if (!gameRunning) return;
+            
+            // Clear canvas
+            const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+            gradient.addColorStop(0, '#87ceeb');
+            gradient.addColorStop(1, '#e0f2fe');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Update and draw clouds
+            clouds.forEach(cloud => {
+                cloud.update();
+                cloud.draw();
+            });
+            
+            // Update plane
+            updatePlane();
+            
+            // Spawn and update obstacles
+            spawnObstacles();
+            obstacles = obstacles.filter(obstacle => {
+                obstacle.update();
+                obstacle.draw();
+                return obstacle.x + obstacle.width > 0;
+            });
+            
+            // Spawn and update collectibles
+            spawnCollectibles();
+            collectibles = collectibles.filter(collectible => {
+                collectible.update();
+                collectible.draw();
+                return collectible.x + collectible.radius > 0;
+            });
+            
+            // Draw plane
+            drawPlane();
+            
+            // Check collisions
+            checkCollisions();
+            
+            // Update score
+            score++;
+            if (score % 10 === 0) updateUI();
+            
+            requestAnimationFrame(gameLoop);
+        }
+        
+        // Start game
+        document.getElementById('startBtn').addEventListener('click', () => {
+            gameRunning = true;
+            score = 0;
+            coins = 0;
+            obstacles = [];
+            collectibles = [];
+            plane.y = 250;
+            plane.targetY = 250;
+            lastObstacleTime = Date.now();
+            lastCollectibleTime = Date.now();
+            updateUI();
+            document.getElementById('startBtn').style.display = 'none';
+            gameLoop();
+        });
+        
+        // Initialize clouds
+        for (let i = 0; i < 8; i++) {
+            clouds.push(new Cloud());
+        }
+        
+        // Background animation
+        function backgroundLoop() {
+            if (!gameRunning) {
+                const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+                gradient.addColorStop(0, '#87ceeb');
+                gradient.addColorStop(1, '#e0f2fe');
+                ctx.fillStyle = gradient;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                clouds.forEach(cloud => {
+                    cloud.update();
+                    cloud.draw();
+                });
+                
+                drawPlane();
+            }
+            requestAnimationFrame(backgroundLoop);
+        }
+        
+        backgroundLoop();
+    </script>
+</body>
+</html>

@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎮 Game Arcade - Play Free HTML5 Games</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        header {
+            text-align: center;
+            color: white;
+            margin-bottom: 40px;
+            padding: 30px 20px;
+        }
+        
+        h1 {
+            font-size: 48px;
+            margin-bottom: 10px;
+            text-shadow: 3px 3px 6px rgba(0, 0, 0, 0.3);
+        }
+        
+        .subtitle {
+            font-size: 20px;
+            opacity: 0.9;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
+        }
+        
+        .game-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 25px;
+            margin-bottom: 40px;
+        }
+        
+        .game-card {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            padding: 25px;
+            text-align: center;
+            transition: transform 0.3s, box-shadow 0.3s;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+            cursor: pointer;
+        }
+        
+        .game-card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.3);
+        }
+        
+        .game-icon {
+            font-size: 60px;
+            margin-bottom: 15px;
+        }
+        
+        .game-title {
+            font-size: 22px;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 10px;
+        }
+        
+        .game-description {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 20px;
+            line-height: 1.5;
+        }
+        
+        .play-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            font-size: 16px;
+            font-weight: bold;
+            border-radius: 25px;
+            cursor: pointer;
+            transition: transform 0.2s;
+            text-decoration: none;
+            display: inline-block;
+        }
+        
+        .play-btn:hover {
+            transform: scale(1.05);
+        }
+        
+        .play-btn:active {
+            transform: scale(0.98);
+        }
+        
+        footer {
+            text-align: center;
+            color: white;
+            padding: 30px 20px;
+            margin-top: 40px;
+            opacity: 0.8;
+        }
+        
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 36px;
+            }
+            
+            .game-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🎮 Game Arcade</h1>
+            <p class="subtitle">Play awesome HTML5 games right in your browser!</p>
+        </header>
+        
+        <div class="game-grid">
+            <!-- Sky Pilot -->
+            <div class="game-card">
+                <div class="game-icon">✈️</div>
+                <div class="game-title">Sky Pilot</div>
+                <div class="game-description">Navigate your plane through obstacles and collect coins in this exciting flying adventure!</div>
+                <a href="sky_pilot.html" class="play-btn">Play Now</a>
+            </div>
+            
+            <!-- Circle Clicker -->
+            <div class="game-card">
+                <div class="game-icon">🎯</div>
+                <div class="game-title">Circle Clicker</div>
+                <div class="game-description">Test your reflexes! Click the circles before they disappear and rack up high scores.</div>
+                <a href="circle_clicker.html" class="play-btn">Play Now</a>
+            </div>
+            
+            <!-- Fishing Game -->
+            <div class="game-card">
+                <div class="game-icon">🎣</div>
+                <div class="game-title">Fishing Game</div>
+                <div class="game-description">Cast your line and catch as many fish as you can in this relaxing fishing adventure!</div>
+                <a href="fishing_game.html" class="play-btn">Play Now</a>
+            </div>
+            
+            <!-- Moto Racer -->
+            <div class="game-card">
+                <div class="game-icon">🏍️</div>
+                <div class="game-title">Moto Racer</div>
+                <div class="game-description">Race through traffic at high speeds. Dodge cars and compete for the best time!</div>
+                <a href="moto_racer.html" class="play-btn">Play Now</a>
+            </div>
+            
+            <!-- Tower Defense -->
+            <div class="game-card">
+                <div class="game-icon">🗼</div>
+                <div class="game-title">Tower Defense</div>
+                <div class="game-description">Strategically place towers to defend your base from waves of enemies!</div>
+                <a href="tower_defense.html" class="play-btn">Play Now</a>
+            </div>
+            
+            <!-- Tower Defense Desert -->
+            <div class="game-card">
+                <div class="game-icon">🏜️</div>
+                <div class="game-title">Tower Defense: Desert</div>
+                <div class="game-description">Defend the desert outpost with strategic tower placement and upgrades!</div>
+                <a href="tower_defense_desert.html" class="play-btn">Play Now</a>
+            </div>
+            
+            <!-- Tower Defense Lava -->
+            <div class="game-card">
+                <div class="game-icon">🌋</div>
+                <div class="game-title">Tower Defense: Lava</div>
+                <div class="game-description">Battle enemies in a volcanic landscape with fiery towers and molten strategy!</div>
+                <a href="tower_defense_lava.html" class="play-btn">Play Now</a>
+            </div>
+            
+            <!-- Tower Defense Space -->
+            <div class="game-card">
+                <div class="game-icon">🚀</div>
+                <div class="game-title">Tower Defense: Space</div>
+                <div class="game-description">Defend your space station from alien invaders with futuristic towers!</div>
+                <a href="tower_defense_space.html" class="play-btn">Play Now</a>
+            </div>
+            
+            <!-- Trump Maze Runner -->
+            <div class="game-card">
+                <div class="game-icon">🏃</div>
+                <div class="game-title">Maze Runner</div>
+                <div class="game-description">Navigate through challenging mazes. Can you find your way out?</div>
+                <a href="trump_maze_runner.html" class="play-btn">Play Now</a>
+            </div>
+            
+            <!-- Zombie Survivors -->
+            <div class="game-card">
+                <div class="game-icon">🧟</div>
+                <div class="game-title">Zombie Survivors</div>
+                <div class="game-description">Survive waves of zombies in this action-packed survival shooter!</div>
+                <a href="zombie_survivors_rpg.html" class="play-btn">Play Now</a>
+            </div>
+            
+            <!-- Zombie Survivors Flamethrower -->
+            <div class="game-card">
+                <div class="game-icon">🔥</div>
+                <div class="game-title">Zombies: Flamethrower</div>
+                <div class="game-description">Burn through zombie hordes with your powerful flamethrower weapon!</div>
+                <a href="zombie_survivors_flamethrower.html" class="play-btn">Play Now</a>
+            </div>
+            
+            <!-- Zombie Survivors Pistol -->
+            <div class="game-card">
+                <div class="game-icon">🔫</div>
+                <div class="game-title">Zombies: Pistol</div>
+                <div class="game-description">Take down zombies with precision shooting in this pistol-focused survival mode!</div>
+                <a href="zombie_survivors_pistol.html" class="play-btn">Play Now</a>
+            </div>
+            
+            <!-- AI Music Generator -->
+            <div class="game-card">
+                <div class="game-icon">🎵</div>
+                <div class="game-title">AI Music Generator</div>
+                <div class="game-description">Create unique music with AI! Generate melodies, beats, and harmonies instantly.</div>
+                <a href="ai-music-generator.html" class="play-btn">Play Now</a>
+            </div>
+            
+            <!-- AI Music Studio Pro -->
+            <div class="game-card">
+                <div class="game-icon">🎹</div>
+                <div class="game-title">AI Music Studio Pro</div>
+                <div class="game-description">Advanced AI music creation with more instruments, effects, and professional features!</div>
+                <a href="ai-music-generator-advanced.html" class="play-btn">Play Now</a>
+            </div>
+        </div>
+        
+        <footer>
+            <p>🎮 All games are free to play! Enjoy your gaming experience! 🎮</p>
+        </footer>
+    </div>
+</body>
+</html>

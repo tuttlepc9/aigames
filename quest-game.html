@@ -50,8 +50,8 @@ body,html{width:100%;height:100%;overflow:hidden;background:#0a0a0a;font-family:
 The kingdom needs your help. Complete all quests to restore peace and light to the realm!
 </div>
 <div class="control"><strong>WASD / Arrow Keys:</strong> Move your character</div>
-<div class="control"><strong>E:</strong> Interact with NPCs</div>
-<div class="control"><strong>💡 Tips:</strong> Look for <span style="color:#ff0;font-weight:bold">!</span> markers above NPCs with quests. Walk over glowing items to collect them. Check your minimap (bottom-left) to navigate!</div>
+<div class="control"><strong>E:</strong> Talk to NPCs & examine objects</div>
+<div class="control"><strong>💡 Tips:</strong> Look for <span style="color:#ff0;font-weight:bold">!</span> markers above NPCs with quests. Explore and examine <span style="color:#0ff;font-weight:bold">cyan objects</span> to learn the kingdom's history. Check your minimap!</div>
 <button class="close" onclick="document.getElementById('help').style.display='none'">Start Adventure!</button>
 </div>
 <div id="minimap"><canvas id="minimapCanvas"></canvas></div>
@@ -60,6 +60,8 @@ The kingdom needs your help. Complete all quests to restore peace and light to t
 <div id="quest-list"></div>
 <h3 style="margin-top:16px">🎒 Inventory</h3>
 <div id="inventory"></div>
+<h3 style="margin-top:16px">🗺️ Discoveries</h3>
+<div id="discoveries" style="text-align:center;padding:8px;background:rgba(0,255,255,0.1);border-radius:4px;color:#0ff;font-weight:bold">0 / 10</div>
 </div>
 <div id="dialogue">
 <div class="npc-name"></div>
@@ -75,7 +77,7 @@ The kingdom needs your help. Complete all quests to restore peace and light to t
 const CONFIG={tileSize:32,mapCols:200,mapRows:200,viewWidth:0,viewHeight:0,targetFPS:60,fixedStep:1/60};
 const KEYS={};
 const MOUSE={x:0,y:0,btn:0};
-const GAME={quests:[],inventory:[],currentDialogue:null,gameComplete:false};
+const GAME={quests:[],inventory:[],currentDialogue:null,gameComplete:false,discovered:new Set()};
 const QUEST_DATA=[
 {id:'find_sword',title:'The Lost Sword',description:'Find the legendary sword for Elder Marcus',npc:'Marcus',requiredItem:'legendary_sword',reward:'ancient_map',complete:false},
 {id:'collect_herbs',title:'Healing Herbs',description:'Collect 3 magical herbs for Healer Emma',npc:'Emma',requiredItem:'herbs_3',reward:'healing_potion',complete:false},
@@ -87,6 +89,19 @@ const ITEM_SPAWNS=[
 {id:'herb',x:30,y:170,name:'🌿 Magical Herb',spawned:true},
 {id:'herb',x:90,y:80,name:'🌿 Magical Herb',spawned:true},
 {id:'sacred_crystal',x:100,y:100,name:'💎 Sacred Crystal',spawned:false}
+];
+
+const INTERACTIVE_OBJECTS=[
+{type:'sign',x:95,y:95,name:'📜 Ancient Sign',text:'Here lies the Temple of Light. Once the heart of our kingdom, now shrouded in eternal shadow. Only the Sacred Crystal can restore its former glory.'},
+{type:'ruins',x:160,y:60,name:'🏛️ Old Ruins',text:'These ruins were once a mighty fortress. Long ago, a great warrior defended this land with a legendary blade. The sword was lost when darkness fell upon the realm.'},
+{type:'campfire',x:120,y:80,name:'🔥 Abandoned Camp',text:'A cold campfire surrounded by scattered belongings. Looks like travelers fled in haste. There are boot prints leading north towards the mountains.'},
+{type:'statue',x:50,y:50,name:'🗿 Weathered Statue',text:'An ancient statue of a healer holding three herbs. An inscription reads: "In unity of earth\'s bounty, we find strength to mend what darkness has broken."'},
+{type:'monument',x:140,y:140,name:'⚔️ War Memorial',text:'A memorial stone: "To those who fought in the Battle of Shadows - their courage will never be forgotten. May light prevail once more."'},
+{type:'well',x:70,y:120,name:'🕳️ Old Well',text:'A deep stone well. You hear a faint echo when you peer inside. Someone carved: "The darkness came from beneath. Beware the depths."'},
+{type:'shrine',x:110,y:160,name:'✨ Shrine of Hope',text:'A small shrine with wilted flowers. A plaque reads: "When all seems lost, remember - even the smallest flame can pierce the deepest darkness."'},
+{type:'tree',x:40,y:100,name:'🌳 Ancient Oak',text:'An enormous oak tree, centuries old. Its bark is scarred with strange symbols. This tree has witnessed the rise and fall of many kingdoms.'},
+{type:'gravestone',x:170,y:90,name:'🪦 Gravestone',text:'Here rests Aldric the Brave. He ventured into darkness seeking the crystal. He did not return. "May another succeed where I failed."'},
+{type:'altar',x:130,y:110,name:'🕯️ Forgotten Altar',text:'An altar covered in dust and cobwebs. Ancient candles sit unlit. You sense powerful magic lingered here long ago. The air feels heavy with lost prayers.'}
 ];
 
 class Engine{
@@ -102,6 +117,7 @@ this.lastTime=0;
 this.accum=0;
 this.entities=[];
 this.items=[];
+this.interactives=[];
 this.particles=[];
 this.camera={x:0,y:0};
 this.map=null;
@@ -146,18 +162,64 @@ this.canvas.addEventListener('contextmenu',e=>e.preventDefault());
 initWorld(){
 this.map=new TileMap();
 GAME.quests=QUEST_DATA.map(q=>({...q}));
+
+// Spawn items only on walkable tiles
 ITEM_SPAWNS.forEach(spawn=>{
-if(spawn.spawned)this.items.push(new Item(spawn));
+if(spawn.spawned){
+// Find a nearby walkable tile if current position is water
+let testX=spawn.x;
+let testY=spawn.y;
+let attempts=0;
+while(!this.map.isWalkable(testX*CONFIG.tileSize,testY*CONFIG.tileSize)&&attempts<50){
+testX=spawn.x+Math.floor(Math.random()*10-5);
+testY=spawn.y+Math.floor(Math.random()*10-5);
+attempts++;
+}
+if(this.map.isWalkable(testX*CONFIG.tileSize,testY*CONFIG.tileSize)){
+const itemCopy={...spawn,x:testX,y:testY};
+this.items.push(new Item(itemCopy));
+}
+}
 });
+
+// Create interactive objects
+INTERACTIVE_OBJECTS.forEach(obj=>{
+let testX=obj.x;
+let testY=obj.y;
+let attempts=0;
+while(!this.map.isWalkable(testX*CONFIG.tileSize,testY*CONFIG.tileSize)&&attempts<50){
+testX=obj.x+Math.floor(Math.random()*10-5);
+testY=obj.y+Math.floor(Math.random()*10-5);
+attempts++;
+}
+if(this.map.isWalkable(testX*CONFIG.tileSize,testY*CONFIG.tileSize)){
+this.interactives.push(new Interactive(testX*CONFIG.tileSize,testY*CONFIG.tileSize,obj.name,obj.text,obj.type));
+}
+});
+
 const npcData=[
 {name:'Marcus',x:100,y:50,color:'#f44',quest:'find_sword',dialogue:'Greetings, traveler! I am Elder Marcus. Long ago, I wielded a legendary sword that could cut through any darkness. I lost it during a great battle. If you find it, bring it to me!'},
 {name:'Emma',x:50,y:150,color:'#4f4',quest:'collect_herbs',dialogue:'Hello! I am Emma, the village healer. I need 3 magical herbs to brew a powerful healing potion. They grow in remote areas. Can you help me gather them?'},
 {name:'King',x:100,y:100,color:'#ff0',quest:'find_crystal',dialogue:'Welcome, brave hero! I am the King of this realm. Our kingdom has fallen into shadow. Only the Sacred Crystal can restore light to our land. Help us find it!'},
-{name:'Villager',x:120,y:130,color:'#8af',quest:null,dialogue:'Thanks for helping our kingdom! The darkness has been hard on all of us.'}
+{name:'Villager',x:120,y:130,color:'#8af',quest:null,dialogue:'Thanks for helping our kingdom! The darkness has been hard on all of us.'},
+{name:'Merchant',x:75,y:75,color:'#c8a',quest:null,dialogue:'I used to sell wares across the land, but now the roads are too dangerous. That cursed shadow appeared one night and everything changed.'},
+{name:'Guard',x:145,y:105,color:'#888',quest:null,dialogue:'I stand watch here day and night. The darkness grows stronger. We need that Sacred Crystal before it\'s too late!'}
 ];
+
 npcData.forEach(data=>{
-this.entities.push(new NPC(data.x*CONFIG.tileSize,data.y*CONFIG.tileSize,data.name,data.color,data.quest,data.dialogue));
+let testX=data.x;
+let testY=data.y;
+let attempts=0;
+while(!this.map.isWalkable(testX*CONFIG.tileSize,testY*CONFIG.tileSize)&&attempts<50){
+testX=data.x+Math.floor(Math.random()*8-4);
+testY=data.y+Math.floor(Math.random()*8-4);
+attempts++;
+}
+if(this.map.isWalkable(testX*CONFIG.tileSize,testY*CONFIG.tileSize)){
+this.entities.push(new NPC(testX*CONFIG.tileSize,testY*CONFIG.tileSize,data.name,data.color,data.quest,data.dialogue));
+}
 });
+
 this.player=new Player(CONFIG.mapCols*CONFIG.tileSize/2,CONFIG.mapRows*CONFIG.tileSize/2);
 this.entities.push(this.player);
 this.updateUI();
@@ -180,6 +242,7 @@ update(dt){
 if(GAME.gameComplete||!this.map)return;
 for(const e of this.entities)e.update(dt,this);
 for(const item of this.items)item.update(dt,this);
+for(const obj of this.interactives)obj.update(dt);
 for(let i=this.particles.length-1;i>=0;i--){
 this.particles[i].update(dt);
 if(this.particles[i].life<=0)this.particles.splice(i,1);
@@ -205,6 +268,7 @@ this.ctx.translate(-this.camera.x,-this.camera.y);
 this.map.render(this.ctx,this.camera);
 for(const p of this.particles)p.render(this.ctx);
 for(const item of this.items)item.render(this.ctx);
+for(const obj of this.interactives)obj.render(this.ctx);
 const sortedEntities=[...this.entities].sort((a,b)=>a.y-b.y);
 for(const e of sortedEntities)e.render(this.ctx);
 this.renderInteractionHints();
@@ -219,6 +283,7 @@ this.ctx.fillRect(0,0,this.canvas.width,this.canvas.height);
 
 renderInteractionHints(){
 const nearNPC=this.getNearbyNPC();
+const nearObj=this.getNearbyInteractive();
 if(nearNPC){
 this.ctx.fillStyle='#ff0';
 this.ctx.font='bold 14px Arial';
@@ -228,6 +293,16 @@ this.ctx.lineWidth=3;
 const text='Press E to talk';
 this.ctx.strokeText(text,nearNPC.x,nearNPC.y-40);
 this.ctx.fillText(text,nearNPC.x,nearNPC.y-40);
+}
+if(nearObj){
+this.ctx.fillStyle='#0ff';
+this.ctx.font='bold 14px Arial';
+this.ctx.textAlign='center';
+this.ctx.strokeStyle='#000';
+this.ctx.lineWidth=3;
+const text='Press E to examine';
+this.ctx.strokeText(text,nearObj.x,nearObj.y-30);
+this.ctx.fillText(text,nearObj.x,nearObj.y-30);
 }
 }
 
@@ -253,6 +328,10 @@ mctx.fillRect(x*scaleX*tileScale,y*scaleY*tileScale,4*scaleX*tileScale,4*scaleY*
 mctx.fillStyle='#ff0';
 for(const item of this.items){
 mctx.fillRect(item.x*scaleX-2,item.y*scaleY-2,4,4);
+}
+for(const obj of this.interactives){
+mctx.fillStyle=GAME.discovered.has(obj.name)?'#0ff':'rgba(0,255,255,0.4)';
+mctx.fillRect(obj.x*scaleX-1,obj.y*scaleY-1,2,2);
 }
 for(const e of this.entities){
 if(e instanceof NPC){
@@ -284,9 +363,61 @@ if(dist<50)return e;
 return null;
 }
 
+getNearbyInteractive(){
+for(const obj of this.interactives){
+const dist=Math.hypot(this.player.x-obj.x,this.player.y-obj.y);
+if(dist<50)return obj;
+}
+return null;
+}
+
 tryInteract(){
 const npc=this.getNearbyNPC();
-if(npc)this.showDialogue(npc);
+if(npc){
+this.showDialogue(npc);
+return;
+}
+const obj=this.getNearbyInteractive();
+if(obj){
+this.showObjectText(obj);
+}
+}
+
+showObjectText(obj){
+const dialogueEl=document.getElementById('dialogue');
+const nameEl=dialogueEl.querySelector('.npc-name');
+const textEl=dialogueEl.querySelector('.text');
+const choicesEl=dialogueEl.querySelector('.choices');
+nameEl.textContent=obj.name;
+textEl.textContent=obj.text;
+
+// Track discovery
+const wasNew=!GAME.discovered.has(obj.name);
+if(wasNew){
+GAME.discovered.add(obj.name);
+this.updateUI();
+// Sparkle effect for new discovery
+for(let i=0;i<10;i++){
+this.particles.push(new Particle(obj.x,obj.y));
+}
+}
+
+choicesEl.innerHTML='';
+const btn=document.createElement('div');
+btn.className='choice';
+btn.textContent=wasNew?'📖 Discovery recorded!':'Continue exploring';
+btn.onclick=()=>{dialogueEl.style.display='none';};
+choicesEl.appendChild(btn);
+
+// Show discovery count
+if(wasNew){
+const countDiv=document.createElement('div');
+countDiv.style.cssText='margin-top:12px;padding:8px;background:rgba(0,255,255,0.2);border-radius:4px;text-align:center;color:#0ff';
+countDiv.textContent=`Discoveries: ${GAME.discovered.size}/${INTERACTIVE_OBJECTS.length}`;
+choicesEl.appendChild(countDiv);
+}
+
+dialogueEl.style.display='block';
 }
 
 showDialogue(npc){
@@ -358,7 +489,23 @@ if(quest.reward==='ancient_map'){
 const crystalSpawn=ITEM_SPAWNS.find(s=>s.id==='sacred_crystal');
 if(crystalSpawn){
 crystalSpawn.spawned=true;
-this.items.push(new Item(crystalSpawn));
+// Ensure crystal spawns on walkable tile
+let testX=crystalSpawn.x;
+let testY=crystalSpawn.y;
+let attempts=0;
+while(!this.map.isWalkable(testX*CONFIG.tileSize,testY*CONFIG.tileSize)&&attempts<50){
+testX=crystalSpawn.x+Math.floor(Math.random()*10-5);
+testY=crystalSpawn.y+Math.floor(Math.random()*10-5);
+attempts++;
+}
+if(this.map.isWalkable(testX*CONFIG.tileSize,testY*CONFIG.tileSize)){
+const itemCopy={...crystalSpawn,x:testX,y:testY};
+this.items.push(new Item(itemCopy));
+// Extra celebration for unlocking the crystal!
+for(let i=0;i<50;i++){
+this.particles.push(new Particle(this.player.x+Math.random()*100-50,this.player.y+Math.random()*100-50));
+}
+}
 }
 }
 }
@@ -413,13 +560,17 @@ const icons={herb:'🌿',legendary_sword:'⚔️',ancient_map:'🗺️',healing_
 span.textContent=`${icons[id]||'📦'} ${count>1?count+'x':''}`;
 inventory.appendChild(span);
 });
+const discoveries=document.getElementById('discoveries');
+discoveries.textContent=`${GAME.discovered.size} / ${INTERACTIVE_OBJECTS.length}`;
 }
 
 endGame(){
 GAME.gameComplete=true;
 const endEl=document.getElementById('endgame');
 const textEl=document.getElementById('end-text');
-textEl.innerHTML=`<strong>Congratulations, noble hero!</strong><br><br>You have restored the Sacred Crystal to the kingdom!<br>The darkness has been lifted, and light returns to the land.<br><br>Elder Marcus wields his legendary sword once more.<br>Healer Emma has brewed powerful potions to heal the sick.<br>The King's realm flourishes under your heroic deeds.<br><br><em>The kingdom will remember your name forever!</em>`;
+const discoveryPercent=Math.round((GAME.discovered.size/INTERACTIVE_OBJECTS.length)*100);
+const explorerBonus=discoveryPercent===100?' You have discovered all the secrets of the land - you are a true explorer!':'';
+textEl.innerHTML=`<strong>Congratulations, noble hero!</strong><br><br>You have restored the Sacred Crystal to the kingdom!<br>The darkness has been lifted, and light returns to the land.<br><br>Elder Marcus wields his legendary sword once more.<br>Healer Emma has brewed powerful potions to heal the sick.<br>The King's realm flourishes under your heroic deeds.<br><br><strong>🗺️ Exploration: ${GAME.discovered.size}/${INTERACTIVE_OBJECTS.length} Discoveries (${discoveryPercent}%)</strong><br>${explorerBonus}<br><br><em>The kingdom will remember your name forever!</em>`;
 endEl.style.display='block';
 }
 
@@ -437,7 +588,7 @@ updateDebug(){
 const fps=(1/CONFIG.fixedStep).toFixed(0);
 const mx=Math.floor((MOUSE.x+this.camera.x)/CONFIG.tileSize);
 const my=Math.floor((MOUSE.y+this.camera.y)/CONFIG.tileSize);
-this.debugEl.textContent=`FPS:${fps} | Entities:${this.entities.length} | Items:${this.items.length} | Tile:${mx},${my}`;
+this.debugEl.textContent=`FPS:${fps} | Entities:${this.entities.length} | Items:${this.items.length} | Objects:${this.interactives.length} | Tile:${mx},${my}`;
 }
 }
 
@@ -710,6 +861,88 @@ ctx.lineWidth=2;
 const name=this.data.name;
 ctx.strokeText(name,this.x,this.y+bob+20);
 ctx.fillText(name,this.x,this.y+bob+20);
+}
+}
+
+class Interactive{
+constructor(x,y,name,text,type){
+this.x=x;
+this.y=y;
+this.name=name;
+this.text=text;
+this.type=type;
+this.bobTime=Math.random()*10;
+this.particleTime=0;
+}
+
+update(dt){
+this.bobTime+=dt;
+this.particleTime+=dt;
+}
+
+render(ctx){
+const bob=Math.sin(this.bobTime*1.5)*2;
+const colors={
+sign:'#8b4513',
+ruins:'#999',
+campfire:'#ff4500',
+statue:'#708090',
+monument:'#696969',
+well:'#4682b4',
+shrine:'#daa520',
+tree:'#228b22',
+gravestone:'#2f4f4f',
+altar:'#9370db'
+};
+
+const isDiscovered=GAME.discovered.has(this.name);
+
+ctx.fillStyle=isDiscovered?'rgba(0,255,255,0.2)':'rgba(100,100,100,0.2)';
+ctx.beginPath();
+ctx.arc(this.x,this.y+bob,15,0,Math.PI*2);
+ctx.fill();
+
+// Special glow effects for magical objects
+if(this.type==='shrine'||this.type==='altar'){
+ctx.fillStyle='rgba(218,165,32,0.3)';
+ctx.beginPath();
+ctx.arc(this.x,this.y+bob,25+Math.sin(this.bobTime*2)*5,0,Math.PI*2);
+ctx.fill();
+}
+
+const icons={
+sign:'📜',
+ruins:'🏛️',
+campfire:'🔥',
+statue:'🗿',
+monument:'⚔️',
+well:'🕳️',
+shrine:'✨',
+tree:'🌳',
+gravestone:'🪦',
+altar:'🕯️'
+};
+ctx.fillStyle='#fff';
+ctx.font='20px Arial';
+ctx.textAlign='center';
+ctx.textBaseline='middle';
+const icon=icons[this.type]||'❓';
+ctx.strokeStyle='#000';
+ctx.lineWidth=3;
+ctx.strokeText(icon,this.x,this.y+bob);
+ctx.fillText(icon,this.x,this.y+bob);
+ctx.fillStyle=colors[this.type]||'#888';
+ctx.fillRect(this.x-2,this.y+10,4,8);
+
+// Show checkmark for discovered objects
+if(isDiscovered){
+ctx.fillStyle='#0ff';
+ctx.font='bold 12px Arial';
+ctx.strokeStyle='#000';
+ctx.lineWidth=2;
+ctx.strokeText('✓',this.x+12,this.y-12);
+ctx.fillText('✓',this.x+12,this.y-12);
+}
 }
 }
 

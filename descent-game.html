@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Descent - 3D Tunnel Shooter</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background: #000;
+            font-family: 'Courier New', monospace;
+        }
+        #gameCanvas {
+            display: block;
+            width: 100vw;
+            height: 100vh;
+        }
+        .hud {
+            position: absolute;
+            color: #0f0;
+            font-size: 20px;
+            z-index: 10;
+        }
+        #score {
+            top: 20px;
+            left: 20px;
+        }
+        #health {
+            top: 20px;
+            right: 20px;
+        }
+        #controls {
+            bottom: 20px;
+            left: 20px;
+            font-size: 14px;
+        }
+        #gameOver {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            background: rgba(0, 0, 0, 0.9);
+            padding: 40px;
+            border: 2px solid #0f0;
+            display: none;
+            z-index: 20;
+        }
+        #gameOver h1 {
+            color: #f00;
+            font-size: 60px;
+            margin: 0 0 20px 0;
+        }
+        #gameOver p {
+            color: #0f0;
+            font-size: 24px;
+            margin: 10px 0;
+        }
+        .health-bar {
+            position: absolute;
+            top: 50px;
+            right: 20px;
+            width: 200px;
+            height: 20px;
+            border: 2px solid #0f0;
+            z-index: 10;
+        }
+        .health-fill {
+            height: 100%;
+            background: #0f0;
+            transition: width 0.3s;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas"></canvas>
+    
+    <div id="score" class="hud">SCORE: 0</div>
+    <div id="health" class="hud">HULL: 100%</div>
+    <div class="health-bar">
+        <div class="health-fill" id="healthBar" style="width: 100%"></div>
+    </div>
+    
+    <div id="controls" class="hud">
+        WASD/ARROWS: Move & Turn<br>
+        Q/E: Strafe | SHIFT/CTRL: Up/Down<br>
+        SPACE: Fire
+    </div>
+    
+    <div id="gameOver">
+        <h1>DESTROYED</h1>
+        <p id="finalScore">Final Score: 0</p>
+        <p>Press R to Restart</p>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        let scene, camera, renderer, ship;
+        let tunnelSegments = [];
+        let enemies = [];
+        let projectiles = [];
+        let keys = {};
+        let velocity = new THREE.Vector3();
+        let rotation = new THREE.Euler();
+        let score = 0;
+        let health = 100;
+        let gameOver = false;
+        let enemySpawnTimer = 0;
+        let lastTime = Date.now();
+
+        function init() {
+            // Scene setup
+            scene = new THREE.Scene();
+            scene.fog = new THREE.Fog(0x000000, 10, 50);
+            
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.z = 5;
+            
+            renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('gameCanvas'), antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setClearColor(0x000000);
+            
+            // Create ship (player)
+            const shipGeometry = new THREE.ConeGeometry(0.3, 1, 4);
+            const shipMaterial = new THREE.MeshBasicMaterial({ color: 0x00ff00, wireframe: true });
+            ship = new THREE.Mesh(shipGeometry, shipMaterial);
+            ship.rotation.x = Math.PI / 2;
+            scene.add(ship);
+            
+            // Create initial tunnel segments
+            for (let i = 0; i < 10; i++) {
+                createTunnelSegment(i * 10 - 10);
+            }
+            
+            // Lighting
+            const light = new THREE.PointLight(0x4444ff, 1, 100);
+            light.position.set(0, 0, 10);
+            scene.add(light);
+            
+            // Event listeners
+            window.addEventListener('keydown', onKeyDown);
+            window.addEventListener('keyup', onKeyUp);
+            window.addEventListener('resize', onWindowResize);
+            
+            animate();
+        }
+
+        function createTunnelSegment(zPosition) {
+            const segmentLength = 10;
+            const tunnelRadius = 5;
+            const sides = 6;
+            
+            const shape = new THREE.Shape();
+            for (let i = 0; i <= sides; i++) {
+                const angle = (i / sides) * Math.PI * 2;
+                const x = Math.cos(angle) * tunnelRadius;
+                const y = Math.sin(angle) * tunnelRadius;
+                if (i === 0) {
+                    shape.moveTo(x, y);
+                } else {
+                    shape.lineTo(x, y);
+                }
+            }
+            
+            const extrudeSettings = {
+                steps: 2,
+                depth: segmentLength,
+                bevelEnabled: false
+            };
+            
+            const geometry = new THREE.ExtrudeGeometry(shape, extrudeSettings);
+            const material = new THREE.MeshBasicMaterial({ 
+                color: 0x0066ff, 
+                wireframe: true,
+                side: THREE.BackSide 
+            });
+            
+            const tunnel = new THREE.Mesh(geometry, material);
+            tunnel.position.z = zPosition;
+            scene.add(tunnel);
+            tunnelSegments.push(tunnel);
+        }
+
+        function spawnEnemy() {
+            const enemyGeometry = new THREE.OctahedronGeometry(0.5);
+            const enemyMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000, wireframe: true });
+            const enemy = new THREE.Mesh(enemyGeometry, enemyMaterial);
+            
+            const angle = Math.random() * Math.PI * 2;
+            const radius = Math.random() * 3;
+            enemy.position.x = Math.cos(angle) * radius;
+            enemy.position.y = Math.sin(angle) * radius;
+            enemy.position.z = camera.position.z - 30;
+            
+            scene.add(enemy);
+            enemies.push(enemy);
+        }
+
+        function shootProjectile() {
+            const projectileGeometry = new THREE.SphereGeometry(0.1, 8, 8);
+            const projectileMaterial = new THREE.MeshBasicMaterial({ color: 0xffff00 });
+            const projectile = new THREE.Mesh(projectileGeometry, projectileMaterial);
+            
+            projectile.position.copy(camera.position);
+            projectile.position.z -= 1;
+            
+            const direction = new THREE.Vector3(0, 0, -1);
+            direction.applyQuaternion(camera.quaternion);
+            projectile.userData.velocity = direction.multiplyScalar(0.5);
+            
+            scene.add(projectile);
+            projectiles.push(projectile);
+        }
+
+        function onKeyDown(e) {
+            keys[e.key.toLowerCase()] = true;
+            if (e.key === ' ') {
+                e.preventDefault();
+                shootProjectile();
+            }
+            if (e.key.toLowerCase() === 'r' && gameOver) {
+                restartGame();
+            }
+        }
+
+        function onKeyUp(e) {
+            keys[e.key.toLowerCase()] = false;
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function updateGame() {
+            const currentTime = Date.now();
+            const deltaTime = (currentTime - lastTime) / 16.67;
+            lastTime = currentTime;
+            
+            // Movement controls
+            const moveSpeed = 0.1 * deltaTime;
+            const rotateSpeed = 0.03 * deltaTime;
+            
+            if (keys['arrowup'] || keys['w']) {
+                velocity.z -= moveSpeed;
+            }
+            if (keys['arrowdown'] || keys['s']) {
+                velocity.z += moveSpeed;
+            }
+            if (keys['arrowleft'] || keys['a']) {
+                rotation.y += rotateSpeed;
+            }
+            if (keys['arrowright'] || keys['d']) {
+                rotation.y -= rotateSpeed;
+            }
+            if (keys['q']) {
+                velocity.x -= moveSpeed;
+            }
+            if (keys['e']) {
+                velocity.x += moveSpeed;
+            }
+            if (keys['shift']) {
+                velocity.y -= moveSpeed;
+            }
+            if (keys['control']) {
+                velocity.y += moveSpeed;
+            }
+            
+            // Apply velocity damping
+            velocity.multiplyScalar(0.95);
+            
+            // Update camera position and rotation
+            camera.position.add(velocity);
+            camera.rotation.y = rotation.y;
+            
+            // Update ship position
+            ship.position.copy(camera.position);
+            ship.position.z -= 2;
+            ship.rotation.y = rotation.y + Math.PI;
+            
+            // Spawn enemies
+            enemySpawnTimer += deltaTime;
+            if (enemySpawnTimer > 120) {
+                spawnEnemy();
+                enemySpawnTimer = 0;
+            }
+            
+            // Update enemies
+            for (let i = enemies.length - 1; i >= 0; i--) {
+                const enemy = enemies[i];
+                enemy.rotation.x += 0.02 * deltaTime;
+                enemy.rotation.y += 0.02 * deltaTime;
+                
+                if (enemy.position.z > camera.position.z + 5) {
+                    scene.remove(enemy);
+                    enemies.splice(i, 1);
+                    
+                    health -= 10;
+                    updateHUD();
+                    
+                    if (health <= 0) {
+                        endGame();
+                    }
+                }
+            }
+            
+            // Update projectiles
+            for (let i = projectiles.length - 1; i >= 0; i--) {
+                const projectile = projectiles[i];
+                projectile.position.add(projectile.userData.velocity);
+                
+                // Check collision with enemies
+                for (let j = enemies.length - 1; j >= 0; j--) {
+                    const enemy = enemies[j];
+                    const distance = projectile.position.distanceTo(enemy.position);
+                    
+                    if (distance < 0.6) {
+                        scene.remove(enemy);
+                        enemies.splice(j, 1);
+                        scene.remove(projectile);
+                        projectiles.splice(i, 1);
+                        score += 100;
+                        updateHUD();
+                        break;
+                    }
+                }
+                
+                if (projectile.position.z < camera.position.z - 50) {
+                    scene.remove(projectile);
+                    projectiles.splice(i, 1);
+                }
+            }
+            
+            // Update tunnel segments
+            for (let i = tunnelSegments.length - 1; i >= 0; i--) {
+                const segment = tunnelSegments[i];
+                
+                if (segment.position.z > camera.position.z + 20) {
+                    scene.remove(segment);
+                    tunnelSegments.splice(i, 1);
+                }
+            }
+            
+            if (tunnelSegments.length < 10) {
+                const lastZ = tunnelSegments[tunnelSegments.length - 1]?.position.z || 0;
+                createTunnelSegment(lastZ - 10);
+            }
+            
+            // Auto forward movement
+            camera.position.z -= 0.05 * deltaTime;
+        }
+
+        function updateHUD() {
+            document.getElementById('score').textContent = 'SCORE: ' + score;
+            document.getElementById('health').textContent = 'HULL: ' + Math.max(0, health) + '%';
+            document.getElementById('healthBar').style.width = Math.max(0, health) + '%';
+            
+            if (health < 30) {
+                document.getElementById('healthBar').style.background = '#f00';
+            } else if (health < 60) {
+                document.getElementById('healthBar').style.background = '#ff0';
+            }
+        }
+
+        function endGame() {
+            gameOver = true;
+            document.getElementById('finalScore').textContent = 'Final Score: ' + score;
+            document.getElementById('gameOver').style.display = 'block';
+        }
+
+        function restartGame() {
+            gameOver = false;
+            score = 0;
+            health = 100;
+            
+            enemies.forEach(enemy => scene.remove(enemy));
+            enemies = [];
+            
+            projectiles.forEach(proj => scene.remove(proj));
+            projectiles = [];
+            
+            camera.position.set(0, 0, 5);
+            velocity.set(0, 0, 0);
+            rotation.set(0, 0, 0);
+            enemySpawnTimer = 0;
+            
+            document.getElementById('gameOver').style.display = 'none';
+            updateHUD();
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            if (!gameOver) {
+                updateGame();
+            }
+            
+            renderer.render(scene, camera);
+        }
+
+        init();
+    </script>
+</body>
+</html>

@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>SmartFoxServer 2X Remote Test Client</title>
+    <title>SmartFoxServer 2X Test Client</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -56,7 +56,7 @@
             padding: 15px;
             margin-top: 20px;
             border-radius: 4px;
-            height: 300px;
+            height: 350px;
             overflow-y: auto;
             font-family: 'Courier New', monospace;
             font-size: 12px;
@@ -85,17 +85,22 @@
             margin-top: 0;
             color: #0c5460;
         }
+        .server-info {
+            background-color: #fff3cd;
+            border: 1px solid #ffc107;
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 15px;
+            font-family: monospace;
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>🎮 SmartFoxServer 2X Remote Test Client</h1>
+        <h1>🎮 SmartFoxServer 2X Test Client</h1>
         
-        <div class="info-box">
-            <h3>ℹ️ Setup Instructions</h3>
-            <p><strong>1.</strong> Find your server's IP address (use <code>ipconfig</code> on Windows or <code>ifconfig</code> on Mac/Linux)</p>
-            <p><strong>2.</strong> Make sure ports <strong>8080</strong> and <strong>9933</strong> are open in your firewall</p>
-            <p><strong>3.</strong> Enter the server IP below and click Connect</p>
+        <div class="server-info">
+            <strong>Server:</strong> 162.120.186.91:8080
         </div>
         
         <div id="status" class="status disconnected">
@@ -103,13 +108,8 @@
         </div>
         
         <div class="form-group">
-            <label>Server Host:</label>
-            <input type="text" id="serverHost" placeholder="192.168.1.100" value="localhost">
-        </div>
-        
-        <div class="form-group">
-            <label>Server Port:</label>
-            <input type="text" id="serverPort" placeholder="8080" value="8080">
+            <label>Username:</label>
+            <input type="text" id="username" placeholder="Enter your username" value="TestUser">
         </div>
         
         <div class="form-group">
@@ -118,17 +118,12 @@
         </div>
         
         <div class="form-group">
-            <label>Username:</label>
-            <input type="text" id="username" placeholder="TestUser" value="TestUser">
-        </div>
-        
-        <div class="form-group">
             <label>Room Name:</label>
             <input type="text" id="roomName" placeholder="Lobby" value="Lobby">
         </div>
         
         <div>
-            <button id="connectBtn" onclick="connect()">Connect</button>
+            <button id="connectBtn" onclick="connect()">Connect to Server</button>
             <button id="disconnectBtn" onclick="disconnect()" disabled>Disconnect</button>
             <button onclick="clearLog()">Clear Log</button>
         </div>
@@ -136,48 +131,35 @@
         <div id="log"></div>
     </div>
 
-    <!-- Load SmartFoxServer 2X JavaScript API from CDN -->
+    <!-- Load SmartFoxServer 2X JavaScript API -->
     <script>
-        // Dynamically load SFS2X API
-        var script1 = document.createElement('script');
-        var host = document.getElementById('serverHost').value || 'localhost';
-        var port = document.getElementById('serverPort').value || '8080';
+        // Try to load the API from multiple sources
+        var apiLoaded = false;
         
-        // Try to load from the server, fallback to CDN if needed
-        script1.onerror = function() {
-            log("⚠️ Could not load SFS2X API from server. Using CDN fallback...");
-            var fallbackScript = document.createElement('script');
-            fallbackScript.src = 'https://cdn.jsdelivr.net/gh/SmartFoxServer/SFS2X_JavaScript_API@latest/deploy/SFS2X_API.js';
-            fallbackScript.onerror = function() {
-                log("✗ Failed to load SFS2X API. Please check your connection.");
-            };
-            document.head.appendChild(fallbackScript);
-        };
-        
-        // Wait a moment for the page to load before trying to load scripts
-        window.addEventListener('DOMContentLoaded', function() {
-            loadSFSAPI();
-        });
-        
-        function loadSFSAPI() {
-            var host = document.getElementById('serverHost').value || 'localhost';
-            var port = document.getElementById('serverPort').value || '8080';
-            
+        function loadAPI() {
             var script = document.createElement('script');
-            script.src = 'http://' + host + ':' + port + '/js/SFS2X_API_JS.js';
+            script.src = 'http://162.120.186.91:8080/js/SFS2X_API_JS.js';
+            script.onload = function() {
+                apiLoaded = true;
+                log("✓ SmartFoxServer API loaded successfully");
+            };
             script.onerror = function() {
-                // If loading from server fails, try CDN
-                log("⚠️ Could not load API from " + host + ". Trying alternative source...");
-                var fallbackScript = document.createElement('script');
-                fallbackScript.src = 'https://cdn.jsdelivr.net/npm/smartfoxserver-client@1.7.14/SFS2X_API.js';
-                fallbackScript.onerror = function() {
-                    log("✗ Failed to load SFS2X API from all sources.");
-                    log("Manual setup required: Download SFS2X_API_JS.js and place it in the same folder.");
+                log("⚠️ Could not load API from server, trying CDN...");
+                var fallback = document.createElement('script');
+                fallback.src = 'https://cdn.jsdelivr.net/npm/smartfoxserver-client@1.7.14/SFS2X_API.js';
+                fallback.onload = function() {
+                    apiLoaded = true;
+                    log("✓ SmartFoxServer API loaded from CDN");
                 };
-                document.head.appendChild(fallbackScript);
+                fallback.onerror = function() {
+                    log("✗ Failed to load API. Manual setup required.");
+                };
+                document.head.appendChild(fallback);
             };
             document.head.appendChild(script);
         }
+        
+        window.addEventListener('DOMContentLoaded', loadAPI);
     </script>
     
     <script>
@@ -185,6 +167,10 @@
         var statusDiv = document.getElementById("status");
         var connectBtn = document.getElementById("connectBtn");
         var disconnectBtn = document.getElementById("disconnectBtn");
+        
+        // Server configuration - HARDCODED
+        const SERVER_HOST = "162.120.186.91";
+        const SERVER_PORT = 8080;
         
         function log(message) {
             var logDiv = document.getElementById("log");
@@ -195,7 +181,7 @@
         
         function clearLog() {
             document.getElementById("log").innerHTML = "";
-            log("Log cleared.");
+            log("Log cleared. Ready to connect.");
         }
         
         function updateStatus(connected) {
@@ -215,22 +201,21 @@
         function connect() {
             // Check if SFS2X API is loaded
             if (typeof SFS2X === 'undefined') {
-                log("✗ SmartFoxServer API not loaded yet. Please wait a moment and try again.");
-                log("If this persists, you may need to download SFS2X_API_JS.js manually.");
+                log("✗ SmartFoxServer API not loaded yet.");
+                log("Please wait a moment and try again...");
                 return;
             }
             
-            log("Initializing SmartFoxServer 2X...");
+            log("═══════════════════════════════════");
+            log("Initializing connection...");
             
-            // Get configuration from form
-            var host = document.getElementById("serverHost").value || "localhost";
-            var port = parseInt(document.getElementById("serverPort").value) || 8080;
             var zone = document.getElementById("zoneName").value || "MyGameZone";
             
             log("Configuration:");
-            log("  Host: " + host);
-            log("  Port: " + port);
+            log("  Host: " + SERVER_HOST);
+            log("  Port: " + SERVER_PORT);
             log("  Zone: " + zone);
+            log("═══════════════════════════════════");
             
             // Create SmartFox instance
             sfs = new SFS2X.SmartFox();
@@ -242,17 +227,19 @@
             sfs.addEventListener(SFS2X.SFSEvent.LOGIN_ERROR, onLoginError, this);
             sfs.addEventListener(SFS2X.SFSEvent.ROOM_JOIN, onRoomJoin, this);
             sfs.addEventListener(SFS2X.SFSEvent.ROOM_JOIN_ERROR, onRoomJoinError, this);
+            sfs.addEventListener(SFS2X.SFSEvent.USER_ENTER_ROOM, onUserEnterRoom, this);
+            sfs.addEventListener(SFS2X.SFSEvent.USER_EXIT_ROOM, onUserExitRoom, this);
             
             // Connect to SmartFoxServer
             var config = {
-                host: host,
-                port: port,
+                host: SERVER_HOST,
+                port: SERVER_PORT,
                 useSSL: false,
                 zone: zone,
                 debug: false
             };
             
-            log("Connecting to " + config.host + ":" + config.port + "...");
+            log("Connecting to " + SERVER_HOST + ":" + SERVER_PORT + "...");
             try {
                 sfs.connect(config);
             } catch (error) {
@@ -263,76 +250,96 @@
         
         function disconnect() {
             if (sfs && sfs.isConnected) {
-                log("Disconnecting...");
+                log("Disconnecting from server...");
                 sfs.disconnect();
             }
         }
         
         function onConnection(event) {
             if (event.success) {
-                log("✓ Connection successful!");
+                log("✓ Connected to server!");
                 log("Attempting login...");
                 
-                var username = document.getElementById("username").value || "TestUser";
+                var username = document.getElementById("username").value || "TestUser" + Math.floor(Math.random() * 1000);
                 sfs.send(new SFS2X.LoginRequest(username));
             } else {
                 log("✗ Connection failed!");
-                log("Error: " + event.errorMessage);
+                log("Error: " + (event.errorMessage || "Unknown error"));
                 log("");
-                log("Troubleshooting tips:");
-                log("  1. Verify the server IP address is correct");
-                log("  2. Check that SmartFoxServer is running");
-                log("  3. Ensure port " + document.getElementById("serverPort").value + " is open in firewall");
-                log("  4. Try pinging the server: ping " + document.getElementById("serverHost").value);
+                log("Troubleshooting:");
+                log("  • Verify server is running");
+                log("  • Check firewall allows port " + SERVER_PORT);
+                log("  • Try accessing: http://" + SERVER_HOST + ":" + SERVER_PORT + "/admin");
                 updateStatus(false);
             }
         }
         
         function onConnectionLost(event) {
-            log("Connection lost!");
+            log("✗ Connection lost!");
             log("Reason: " + event.reason);
             updateStatus(false);
         }
         
         function onLogin(event) {
             log("✓ Login successful!");
-            log("User: " + event.user.name);
+            log("User ID: " + event.user.id);
+            log("Username: " + event.user.name);
             log("Zone: " + event.zone);
             updateStatus(true);
             
             // Try to join the specified room
             var roomName = document.getElementById("roomName").value || "Lobby";
-            log("Attempting to join '" + roomName + "' room...");
+            log("Attempting to join room: " + roomName);
             sfs.send(new SFS2X.JoinRoomRequest(roomName));
         }
         
         function onLoginError(event) {
             log("✗ Login error!");
-            log("Error: " + event.errorMessage);
-            log("Error code: " + event.errorCode);
+            log("Message: " + event.errorMessage);
+            log("Code: " + event.errorCode);
+            updateStatus(false);
         }
         
         function onRoomJoin(event) {
-            log("✓ Joined room: " + event.room.name);
-            log("Room capacity: " + event.room.getUserList().length + "/" + event.room.getCapacity());
+            log("✓ Successfully joined room: " + event.room.name);
+            log("Room ID: " + event.room.id);
+            log("Max users: " + event.room.getCapacity());
+            log("Current users: " + event.room.getUserList().length);
             log("");
             log("Users in room:");
             event.room.getUserList().forEach(function(user) {
-                log("  - " + user.name + (user.isItMe ? " (you)" : ""));
+                log("  • " + user.name + (user.isItMe ? " (YOU)" : ""));
             });
+            log("═══════════════════════════════════");
+            log("✓ Ready! You're connected and in the room.");
         }
         
         function onRoomJoinError(event) {
             log("✗ Failed to join room!");
             log("Error: " + event.errorMessage);
+            log("Code: " + event.errorCode);
             log("");
-            log("Make sure the room '" + document.getElementById("roomName").value + "' exists in the Admin Tool.");
+            log("Make sure the room exists in the admin panel.");
         }
         
-        log("Remote test client ready.");
-        log("Enter your server details above and click 'Connect'.");
-        log("");
-        log("Note: Loading SmartFoxServer API...");
+        function onUserEnterRoom(event) {
+            var user = event.user;
+            if (!user.isItMe) {
+                log("→ " + user.name + " joined the room");
+            }
+        }
+        
+        function onUserExitRoom(event) {
+            var user = event.user;
+            log("← " + user.name + " left the room");
+        }
+        
+        // Initial log
+        log("═══════════════════════════════════");
+        log("SmartFoxServer 2X Test Client");
+        log("Server: " + SERVER_HOST);
+        log("═══════════════════════════════════");
+        log("Loading API...");
     </script>
 </body>
 </html>

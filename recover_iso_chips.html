@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Recover the Isolinear Chips</title>
+  <style>
+    body {
+      background-color: #000000;
+      font-family: Arial, sans-serif;
+      color: #FFFFFF;
+      text-align: center;
+      margin: 0;
+      padding: 0;
+    }
+    canvas {
+      background: radial-gradient(#000022, #000000);
+      border: 2px solid #39FF14;
+      display: block;
+      margin: 0 auto;
+    }
+    #resetBtn {
+      display: none;
+      padding: 10px 20px;
+      font-size: 16px;
+      margin-top: 10px;
+      background-color: #FF9933;
+      border: none;
+      color: #000;
+      cursor: pointer;
+    }
+    .lcars-panel {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      margin: 5px 0;
+    }
+    .lcars-block {
+      height: 20px;
+      width: 60px;
+    }
+  </style>
+</head>
+<body>
+  <div class="lcars-panel">
+    <div class="lcars-block" style="background:#FF9933;"></div>
+    <div class="lcars-block" style="background:#CC33FF;"></div>
+    <div class="lcars-block" style="background:#33CCFF;"></div>
+  </div>
+
+  <canvas id="gameCanvas" width="480" height="640"></canvas>
+
+  <div class="lcars-panel">
+    <div class="lcars-block" style="background:#FFCC00;"></div>
+    <div class="lcars-block" style="background:#FF3366;"></div>
+    <div class="lcars-block" style="background:#66FF66;"></div>
+  </div>
+
+  <button id="resetBtn">Restart Simulation</button>
+
+  <script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const resetBtn = document.getElementById('resetBtn');
+
+    const sled = {
+      x: canvas.width / 2 - 40,
+      y: canvas.height - 30,
+      width: 80,
+      height: 20,
+      speed: 6,
+      dx: 0
+    };
+
+    let packets = [];
+    let chipsRecovered = 0;
+    let integrity = 3;
+    let simulationFailed = false;
+
+    function playSound(type) {
+      const ctxAudio = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = ctxAudio.createOscillator();
+      const gain = ctxAudio.createGain();
+
+      osc.connect(gain);
+      gain.connect(ctxAudio.destination);
+
+      switch (type) {
+        case 'chip':
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(800, ctxAudio.currentTime);
+          gain.gain.setValueAtTime(0.2, ctxAudio.currentTime);
+          break;
+        case 'empathy':
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(600, ctxAudio.currentTime);
+          gain.gain.setValueAtTime(0.3, ctxAudio.currentTime);
+          break;
+        case 'powerup':
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(400, ctxAudio.currentTime);
+          osc.frequency.linearRampToValueAtTime(1000, ctxAudio.currentTime + 0.3);
+          gain.gain.setValueAtTime(0.3, ctxAudio.currentTime);
+          break;
+        case 'alert':
+          osc.type = 'square';
+          osc.frequency.setValueAtTime(200, ctxAudio.currentTime);
+          gain.gain.setValueAtTime(0.4, ctxAudio.currentTime);
+          break;
+        case 'explosion':
+          const bufferSize = ctxAudio.sampleRate;
+          const buffer = ctxAudio.createBuffer(1, bufferSize, ctxAudio.sampleRate);
+          const data = buffer.getChannelData(0);
+          for (let i = 0; i < bufferSize; i++) {
+            data[i] = (Math.random() * 2 - 1) * Math.exp(-i / 5000);
+          }
+          const noise = ctxAudio.createBufferSource();
+          noise.buffer = buffer;
+          noise.connect(gain);
+          gain.connect(ctxAudio.destination);
+          gain.gain.setValueAtTime(0.5, ctxAudio.currentTime);
+          noise.start();
+          return;
+      }
+
+      osc.start();
+      osc.stop(ctxAudio.currentTime + 0.3);
+    }
+
+    function drawSled() {
+      ctx.fillStyle = '#00BFFF';
+      ctx.fillRect(sled.x, sled.y, sled.width, sled.height);
+    }
+
+    function drawPackets() {
+      packets.forEach(packet => {
+        ctx.beginPath();
+        if (packet.type === 'chip') {
+          ctx.fillStyle = '#39FF14';
+          ctx.fillRect(packet.x - 5, packet.y - 5, 10, 10);
+        } else if (packet.type === 'empathy') {
+          ctx.fillStyle = '#FF69B4';
+          ctx.arc(packet.x, packet.y, packet.radius, 0, Math.PI * 2);
+        } else if (packet.type === 'stabilizer') {
+          ctx.fillStyle = '#00FFFF';
+          ctx.fillRect(packet.x - 6, packet.y - 6, 12, 12);
+        }
+        ctx.fill();
+      });
+    }
+
+    function moveSled() {
+      sled.x += sled.dx;
+      if (sled.x < 0) sled.x = 0;
+      if (sled.x + sled.width > canvas.width) sled.x = canvas.width - sled.width;
+    }
+
+    function updatePackets() {
+      packets.forEach((packet, index) => {
+        packet.y += packet.speed;
+        if (
+          packet.y + packet.radius > sled.y &&
+          packet.x > sled.x &&
+          packet.x < sled.x + sled.width
+        ) {
+          if (packet.type === 'chip') {
+            chipsRecovered++;
+            playSound('chip');
+          }
+          if (packet.type === 'empathy') {
+            integrity++;
+            playSound('empathy');
+          }
+          if (packet.type === 'stabilizer') {
+            sled.width = Math.min(sled.width + 10, 140);
+            playSound('powerup');
+          }
+          packets.splice(index, 1);
+        } else if (packet.y > canvas.height) {
+          if (packet.type === 'chip') {
+            integrity--;
+            playSound('alert');
+          }
+          packets.splice(index, 1);
+        }
+      });
+    }
+
+    function drawStatus() {
+      ctx.fillStyle = '#FFFFFF';
+      ctx.font = '18px Arial';
+      ctx.fillText('Chips Recovered: ' + chipsRecovered, 10, 30);
+      ctx.fillText('Holodeck Integrity: ' + integrity, 10, 60);
+    }
+
+    function generatePacket() {
+      if (simulationFailed) return;
+      const radius = 6;
+      const x = Math.random() * (canvas.width - radius * 2) + radius;
+      const speed = 2 + Math.random() * 3;
+      const rand = Math.random();
+      let type = 'chip';
+      if (rand < 0.1) type = 'empathy';
+      else if (rand < 0.2) type = 'stabilizer';
+      packets.push({ x, y: 0, radius, speed, type });
+    }
+
+    function clearCanvas() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+
+    function drawFailure() {
+      ctx.fillStyle = '#FF0000';
+      ctx.font = '36px Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText('Simulation Failed', canvas.width / 2, canvas.height / 2);
+      resetBtn.style.display = 'inline-block';
+      playSound('explosion');
+    }
+
+    function update() {
+      clearCanvas();
+      if (simulationFailed) {
+        drawFailure();
+        return;
+      }
+
+      drawSled();
+      drawPackets();
+      drawStatus();
+      moveSled();
+      updatePackets();
+
+      if (integrity <= 0) {
+        simulationFailed = true;
+      }
+
+      requestAnimationFrame(update);
+    }
+
+    setInterval(generatePacket, 800);
+    update();
+
+    document.addEventListener('keydown', e => {
+      if (e.key === 'ArrowLeft') sled.dx = -sled.speed;
+      if (e.key === 'ArrowRight') sled.dx = sled.speed;
+    });
+
+    document.addEventListener('keyup', e => {
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') sled.dx = 0;
+    });
+
+    resetBtn.addEventListener('click', () => {
+      chipsRecovered = 0;
+      integrity = 3;
+      simulationFailed = false;
+      packets = [];
+      sled.width = 80;
+      sled.x = canvas.width / 2 - sled.width / 2;
+      resetBtn.style.display = 'none';
+      update();
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,781 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monster Rampage</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: #1a1a2e;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            font-family: 'Courier New', monospace;
+            color: #fff;
+        }
+        canvas {
+            border: 4px solid #ff6b6b;
+            background: #87ceeb;
+            box-shadow: 0 0 20px rgba(255, 107, 107, 0.5);
+        }
+        .controls {
+            margin-top: 20px;
+            text-align: center;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 10px;
+            max-width: 800px;
+        }
+        .hud {
+            margin-bottom: 10px;
+            font-size: 20px;
+            font-weight: bold;
+            color: #4ecca3;
+        }
+        .instructions {
+            font-size: 14px;
+            line-height: 1.6;
+        }
+        .key {
+            background: #ff6b6b;
+            padding: 2px 8px;
+            border-radius: 3px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas" width="800" height="600"></canvas>
+    <div class="controls">
+        <div class="hud">
+            <span id="score">SCORE: 0</span> | 
+            <span id="health">HEALTH: 100%</span> | 
+            <span id="rescued">RESCUED: NO</span>
+        </div>
+        <div class="instructions">
+            <span class="key">←→</span> Move | 
+            <span class="key">↑↓</span> Climb | 
+            <span class="key">SPACE</span> Punch | 
+            <span class="key">X</span> Kick |
+            <span class="key">R</span> Restart
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Game state
+        const game = {
+            score: 0,
+            health: 1000,
+            rescued: false,
+            gameOver: false,
+            won: false,
+            wave: 1,
+            maxHelicopters: 3,
+            maxTanks: 5,
+            maxSoldiers: 8,
+            helicoptersSpawned: 0,
+            tanksSpawned: 0,
+            soldiersSpawned: 0
+        };
+
+        // Player (Monster)
+        const player = {
+            x: 100,
+            y: 400,
+            width: 40,
+            height: 60,
+            vx: 0,
+            vy: 0,
+            speed: 3,
+            climbing: false,
+            onBuilding: null,
+            facing: 1,
+            punching: false,
+            kicking: false,
+            color: '#2ecc71'
+        };
+
+        // Buildings
+        const buildings = [];
+        const buildingCount = 4;
+        const buildingWidth = 120;
+        const blockSize = 20;
+
+        // Girl to rescue
+        let girl = null;
+
+        // Enemies
+        const helicopters = [];
+        const tanks = [];
+        const soldiers = [];
+
+        // Projectiles
+        const projectiles = [];
+
+        // Initialize buildings
+        function initBuildings() {
+            buildings.length = 0;
+            const spacing = (canvas.width - buildingCount * buildingWidth) / (buildingCount + 1);
+            
+            for (let i = 0; i < buildingCount; i++) {
+                const x = spacing + i * (buildingWidth + spacing);
+                const height = 300 + Math.random() * 150;
+                const building = {
+                    x: x,
+                    y: canvas.height - height,
+                    width: buildingWidth,
+                    height: height,
+                    blocks: [],
+                    windows: []
+                };
+
+                // Create destructible blocks
+                const blocksX = Math.floor(buildingWidth / blockSize);
+                const blocksY = Math.floor(height / blockSize);
+                for (let by = 0; by < blocksY; by++) {
+                    for (let bx = 0; bx < blocksX; bx++) {
+                        if (Math.random() > 0.05) { // Some gaps
+                            building.blocks.push({
+                                x: bx * blockSize,
+                                y: by * blockSize,
+                                health: 3,
+                                maxHealth: 3
+                            });
+                        }
+                    }
+                }
+
+                // Create destructible windows
+                for (let i = 0; i < 3; i++) {
+                    for (let j = 0; j < Math.floor(height / 60); j++) {
+                        building.windows.push({
+                            x: 20 + i * 35,
+                            y: 20 + j * 60,
+                            width: 15,
+                            height: 20,
+                            destroyed: false
+                        });
+                    }
+                }
+
+                buildings.push(building);
+            }
+
+            // Place girl in a random building window
+            if (buildings.length > 1) {
+                const buildingIndex = 1 + Math.floor(Math.random() * (buildings.length - 1));
+                const building = buildings[buildingIndex];
+                girl = {
+                    x: building.x + building.width / 2,
+                    y: building.y + building.height / 3,
+                    rescued: false,
+                    building: buildingIndex
+                };
+            }
+        }
+
+        // Spawn enemies
+        function spawnHelicopter() {
+            if (game.helicoptersSpawned < game.maxHelicopters) {
+                helicopters.push({
+                    x: Math.random() < 0.5 ? -50 : canvas.width + 50,
+                    y: 50 + Math.random() * 150,
+                    vx: (Math.random() < 0.5 ? 1 : -1) * (1 + Math.random()),
+                    health: 3,
+                    shootTimer: 0
+                });
+                game.helicoptersSpawned++;
+            }
+        }
+
+        function spawnTank() {
+            if (game.tanksSpawned < game.maxTanks) {
+                tanks.push({
+                    x: Math.random() < 0.5 ? -50 : canvas.width + 50,
+                    y: canvas.height - 30,
+                    vx: (Math.random() < 0.5 ? 0.5 : -0.5),
+                    health: 5,
+                    shootTimer: 0
+                });
+                game.tanksSpawned++;
+            }
+        }
+
+        function spawnSoldier() {
+            if (game.soldiersSpawned < game.maxSoldiers) {
+                soldiers.push({
+                    x: Math.random() < 0.5 ? -20 : canvas.width + 20,
+                    y: canvas.height - 20,
+                    vx: (Math.random() < 0.5 ? 1 : -1),
+                    health: 1,
+                    shootTimer: 0
+                });
+                game.soldiersSpawned++;
+            }
+        }
+
+        // Input handling
+        const keys = {};
+        window.addEventListener('keydown', (e) => {
+            keys[e.key] = true;
+            if (e.key === 'r' || e.key === 'R') {
+                restart();
+            }
+        });
+        window.addEventListener('keyup', (e) => {
+            keys[e.key] = false;
+        });
+
+        // Check collision with buildings
+        function checkBuildingCollision() {
+            player.onBuilding = null;
+            for (let building of buildings) {
+                if (player.x + player.width > building.x &&
+                    player.x < building.x + building.width &&
+                    player.y + player.height >= building.y &&
+                    player.y < building.y + building.height) {
+                    player.onBuilding = building;
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        // Update player
+        function updatePlayer() {
+            if (game.gameOver) return;
+
+            // Reset attack animations
+            if (player.punching) player.punching = false;
+            if (player.kicking) player.kicking = false;
+
+            // Movement
+            if (keys['ArrowLeft']) {
+                player.vx = -player.speed;
+                player.facing = -1;
+            } else if (keys['ArrowRight']) {
+                player.vx = player.speed;
+                player.facing = 1;
+            } else {
+                player.vx = 0;
+            }
+
+            // Climbing
+            if (checkBuildingCollision()) {
+                if (keys['ArrowUp']) {
+                    player.vy = -player.speed;
+                    player.climbing = true;
+                } else if (keys['ArrowDown']) {
+                    player.vy = player.speed;
+                    player.climbing = true;
+                } else {
+                    player.vy = 0;
+                    player.climbing = false;
+                }
+            } else {
+                // Gravity when not on building
+                player.vy += 0.5;
+                player.climbing = false;
+            }
+
+            // Apply movement
+            player.x += player.vx;
+            player.y += player.vy;
+
+            // Ground collision
+            if (player.y + player.height > canvas.height - 10) {
+                player.y = canvas.height - 10 - player.height;
+                player.vy = 0;
+            }
+
+            // Screen bounds
+            player.x = Math.max(0, Math.min(canvas.width - player.width, player.x));
+            player.y = Math.max(0, player.y);
+
+            // Attack
+            if (keys[' '] && !player.punching) {
+                player.punching = true;
+                punch();
+            }
+            if ((keys['x'] || keys['X']) && !player.kicking) {
+                player.kicking = true;
+                kick();
+            }
+
+            // Check girl rescue
+            if (girl && !girl.rescued) {
+                const dist = Math.hypot(player.x - girl.x, player.y - girl.y);
+                if (dist < 50) {
+                    girl.rescued = true;
+                    game.rescued = true;
+                    game.score += 1000;
+                }
+            }
+        }
+
+        // Punch attack
+        function punch() {
+            const range = 60;
+            const attackX = player.x + (player.facing > 0 ? player.width : -range);
+            const attackY = player.y;
+
+            // Damage buildings
+            if (player.onBuilding) {
+                for (let block of player.onBuilding.blocks) {
+                    const bx = player.onBuilding.x + block.x;
+                    const by = player.onBuilding.y + block.y;
+                    if (Math.abs(bx - attackX) < range && Math.abs(by - attackY) < 50) {
+                        block.health--;
+                        if (block.health <= 0) {
+                            player.onBuilding.blocks = player.onBuilding.blocks.filter(b => b !== block);
+                            game.score += 10;
+                        }
+                    }
+                }
+
+                // Damage windows
+                for (let window of player.onBuilding.windows) {
+                    if (!window.destroyed) {
+                        const wx = player.onBuilding.x + window.x;
+                        const wy = player.onBuilding.y + window.y;
+                        if (Math.abs(wx - attackX) < range && Math.abs(wy - attackY) < 50) {
+                            window.destroyed = true;
+                            game.score += 25;
+                        }
+                    }
+                }
+            }
+
+            // Damage enemies
+            helicopters.forEach(h => {
+                if (Math.abs(h.x - player.x) < range && Math.abs(h.y - player.y) < 50) {
+                    h.health--;
+                    if (h.health <= 0) {
+                        helicopters.splice(helicopters.indexOf(h), 1);
+                        game.score += 200;
+                    }
+                }
+            });
+        }
+
+        // Kick attack
+        function kick() {
+            const range = 50;
+            const kickY = player.y + player.height;
+
+            // Damage ground enemies
+            tanks.forEach(t => {
+                if (Math.abs(t.x - player.x) < range && Math.abs(t.y - kickY) < 40) {
+                    t.health -= 2;
+                    if (t.health <= 0) {
+                        tanks.splice(tanks.indexOf(t), 1);
+                        game.score += 150;
+                    }
+                }
+            });
+
+            soldiers.forEach(s => {
+                if (Math.abs(s.x - player.x) < range && Math.abs(s.y - player.y) < 40) {
+                    s.health--;
+                    if (s.health <= 0) {
+                        soldiers.splice(soldiers.indexOf(s), 1);
+                        game.score += 50;
+                    }
+                }
+            });
+
+            // Damage buildings below
+            if (player.onBuilding) {
+                for (let block of player.onBuilding.blocks) {
+                    const by = player.onBuilding.y + block.y;
+                    if (by > kickY && by < kickY + 40) {
+                        block.health--;
+                        if (block.health <= 0) {
+                            player.onBuilding.blocks = player.onBuilding.blocks.filter(b => b !== block);
+                            game.score += 10;
+                        }
+                    }
+                }
+
+                // Damage windows below
+                for (let window of player.onBuilding.windows) {
+                    if (!window.destroyed) {
+                        const wy = player.onBuilding.y + window.y;
+                        if (wy > kickY && wy < kickY + 40) {
+                            window.destroyed = true;
+                            game.score += 25;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Update enemies
+        function updateEnemies() {
+            // Helicopters
+            helicopters.forEach((h, idx) => {
+                h.x += h.vx;
+                
+                // Turn around at edges
+                if (h.x < -50 || h.x > canvas.width + 50) {
+                    h.vx *= -1;
+                }
+
+                // Shoot at player
+                h.shootTimer++;
+                if (h.shootTimer > 90) {
+                    h.shootTimer = 0;
+                    const angle = Math.atan2(player.y - h.y, player.x - h.x);
+                    projectiles.push({
+                        x: h.x,
+                        y: h.y,
+                        vx: Math.cos(angle) * 4,
+                        vy: Math.sin(angle) * 4,
+                        fromEnemy: true
+                    });
+                }
+            });
+
+            // Tanks
+            tanks.forEach((t, idx) => {
+                t.x += t.vx;
+                
+                if (t.x < -50 || t.x > canvas.width + 50) {
+                    t.vx *= -1;
+                }
+
+                t.shootTimer++;
+                if (t.shootTimer > 120) {
+                    t.shootTimer = 0;
+                    projectiles.push({
+                        x: t.x,
+                        y: t.y - 10,
+                        vx: 0,
+                        vy: -5,
+                        fromEnemy: true
+                    });
+                }
+            });
+
+            // Soldiers
+            soldiers.forEach((s, idx) => {
+                s.x += s.vx;
+                
+                if (s.x < -20 || s.x > canvas.width + 20) {
+                    s.vx *= -1;
+                }
+
+                s.shootTimer++;
+                if (s.shootTimer > 60) {
+                    s.shootTimer = 0;
+                    const angle = Math.atan2(player.y - s.y, player.x - s.x);
+                    projectiles.push({
+                        x: s.x,
+                        y: s.y,
+                        vx: Math.cos(angle) * 3,
+                        vy: Math.sin(angle) * 3,
+                        fromEnemy: true
+                    });
+                }
+            });
+
+            // Projectiles
+            projectiles.forEach((p, idx) => {
+                p.x += p.vx;
+                p.y += p.vy;
+
+                // Hit player
+                if (p.fromEnemy) {
+                    if (Math.abs(p.x - player.x - player.width/2) < 20 &&
+                        Math.abs(p.y - player.y - player.height/2) < 30) {
+                        game.health -= 5;
+                        projectiles.splice(idx, 1);
+                        if (game.health <= 0) {
+                            game.gameOver = true;
+                        }
+                    }
+                }
+
+                // Remove off-screen
+                if (p.x < -10 || p.x > canvas.width + 10 || p.y < -10 || p.y > canvas.height + 10) {
+                    projectiles.splice(idx, 1);
+                }
+            });
+        }
+
+        // Spawn wave
+        let spawnTimer = 0;
+        function spawnWave() {
+            spawnTimer++;
+            
+            if (spawnTimer > 180) {
+                spawnTimer = 0;
+                
+                if (helicopters.length < 2 && game.helicoptersSpawned < game.maxHelicopters) spawnHelicopter();
+                if (tanks.length < 3 && game.tanksSpawned < game.maxTanks) spawnTank();
+                if (soldiers.length < 5 && game.soldiersSpawned < game.maxSoldiers) spawnSoldier();
+            }
+        }
+
+        // Check win condition
+        function checkWinCondition() {
+            if (game.won || game.gameOver) return;
+
+            // Count remaining destructible objects
+            let totalBlocks = 0;
+            let totalWindows = 0;
+            
+            buildings.forEach(building => {
+                totalBlocks += building.blocks.length;
+                totalWindows += building.windows.filter(w => !w.destroyed).length;
+            });
+
+            const allBuildingsDestroyed = (totalBlocks + totalWindows) === 0;
+            const allEnemiesDefeated = helicopters.length === 0 && 
+                                       tanks.length === 0 && 
+                                       soldiers.length === 0 &&
+                                       game.helicoptersSpawned >= game.maxHelicopters &&
+                                       game.tanksSpawned >= game.maxTanks &&
+                                       game.soldiersSpawned >= game.maxSoldiers;
+
+            if (allBuildingsDestroyed && allEnemiesDefeated) {
+                game.won = true;
+                game.score += 5000; // Victory bonus!
+            }
+        }
+
+        // Draw
+        function draw() {
+            // Sky
+            const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+            gradient.addColorStop(0, '#87ceeb');
+            gradient.addColorStop(1, '#f0e68c');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Ground
+            ctx.fillStyle = '#666';
+            ctx.fillRect(0, canvas.height - 10, canvas.width, 10);
+
+            // Buildings
+            buildings.forEach(building => {
+                building.blocks.forEach(block => {
+                    const healthPercent = block.health / block.maxHealth;
+                    ctx.fillStyle = healthPercent > 0.66 ? '#8b4513' : 
+                                   healthPercent > 0.33 ? '#a0522d' : '#cd853f';
+                    ctx.fillRect(
+                        building.x + block.x,
+                        building.y + block.y,
+                        blockSize - 1,
+                        blockSize - 1
+                    );
+                });
+
+                // Windows (only draw if not destroyed)
+                building.windows.forEach(window => {
+                    if (!window.destroyed) {
+                        ctx.fillStyle = '#ffeb3b';
+                        ctx.fillRect(
+                            building.x + window.x,
+                            building.y + window.y,
+                            window.width,
+                            window.height
+                        );
+                    } else {
+                        // Draw broken window
+                        ctx.fillStyle = '#333';
+                        ctx.fillRect(
+                            building.x + window.x,
+                            building.y + window.y,
+                            window.width,
+                            window.height
+                        );
+                    }
+                });
+            });
+
+            // Girl
+            if (girl && !girl.rescued) {
+                ctx.fillStyle = '#ff69b4';
+                ctx.beginPath();
+                ctx.arc(girl.x, girl.y, 8, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = '#fff';
+                ctx.fillRect(girl.x - 6, girl.y + 5, 12, 15);
+                
+                // Help sign
+                ctx.fillStyle = '#fff';
+                ctx.font = 'bold 12px Arial';
+                ctx.fillText('HELP!', girl.x - 20, girl.y - 15);
+            }
+
+            // Player
+            ctx.fillStyle = player.color;
+            ctx.fillRect(player.x, player.y, player.width, player.height);
+            
+            // Face
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(player.x + 10, player.y + 10, 8, 8);
+            ctx.fillRect(player.x + 22, player.y + 10, 8, 8);
+            
+            // Mouth (angry)
+            ctx.fillStyle = '#000';
+            ctx.fillRect(player.x + 10, player.y + 30, 20, 4);
+
+            // Punch animation
+            if (player.punching) {
+                ctx.fillStyle = '#ff0000';
+                ctx.fillRect(
+                    player.x + (player.facing > 0 ? player.width : -30),
+                    player.y + 20,
+                    30, 10
+                );
+            }
+
+            // Kick animation
+            if (player.kicking) {
+                ctx.fillStyle = '#ff0000';
+                ctx.fillRect(
+                    player.x + player.width/2 - 15,
+                    player.y + player.height,
+                    30, 10
+                );
+            }
+
+            // Rescued girl
+            if (girl && girl.rescued) {
+                ctx.fillStyle = '#ff69b4';
+                ctx.beginPath();
+                ctx.arc(player.x + player.width/2, player.y - 10, 6, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // Helicopters
+            helicopters.forEach(h => {
+                ctx.fillStyle = '#333';
+                ctx.fillRect(h.x - 20, h.y, 40, 15);
+                ctx.fillRect(h.x - 5, h.y - 10, 10, 10);
+                
+                // Rotor
+                ctx.strokeStyle = '#666';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(h.x - 30, h.y - 5);
+                ctx.lineTo(h.x + 30, h.y - 5);
+                ctx.stroke();
+            });
+
+            // Tanks
+            tanks.forEach(t => {
+                ctx.fillStyle = '#2d5016';
+                ctx.fillRect(t.x - 20, t.y, 40, 20);
+                ctx.fillRect(t.x - 10, t.y - 10, 20, 10);
+                
+                // Barrel
+                ctx.fillRect(t.x + 10, t.y - 5, 15, 4);
+                
+                // Treads
+                ctx.fillStyle = '#000';
+                ctx.fillRect(t.x - 20, t.y + 18, 40, 4);
+            });
+
+            // Soldiers
+            soldiers.forEach(s => {
+                ctx.fillStyle = '#4a4a4a';
+                ctx.fillRect(s.x - 5, s.y - 15, 10, 15);
+                ctx.fillStyle = '#d4a574';
+                ctx.beginPath();
+                ctx.arc(s.x, s.y - 18, 4, 0, Math.PI * 2);
+                ctx.fill();
+            });
+
+            // Projectiles
+            projectiles.forEach(p => {
+                ctx.fillStyle = p.fromEnemy ? '#ff0000' : '#ffff00';
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
+                ctx.fill();
+            });
+
+            // Game Over
+            if (game.gameOver) {
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = '#ff0000';
+                ctx.font = 'bold 48px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText('GAME OVER', canvas.width/2, canvas.height/2);
+                ctx.fillStyle = '#fff';
+                ctx.font = '24px Arial';
+                ctx.fillText('Press R to Restart', canvas.width/2, canvas.height/2 + 50);
+            }
+
+            // Victory!
+            if (game.won) {
+                ctx.fillStyle = 'rgba(0, 100, 0, 0.8)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = '#ffd700';
+                ctx.font = 'bold 60px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText('VICTORY!', canvas.width/2, canvas.height/2 - 40);
+                ctx.fillStyle = '#fff';
+                ctx.font = 'bold 32px Arial';
+                ctx.fillText('TOTAL DESTRUCTION!', canvas.width/2, canvas.height/2 + 20);
+                ctx.font = '24px Arial';
+                ctx.fillText(`Final Score: ${game.score}`, canvas.width/2, canvas.height/2 + 60);
+                ctx.fillText('Press R to Play Again', canvas.width/2, canvas.height/2 + 100);
+            }
+        }
+
+        // Update HUD
+        function updateHUD() {
+            document.getElementById('score').textContent = `SCORE: ${game.score}`;
+            document.getElementById('health').textContent = `HEALTH: ${Math.max(0, game.health)}%`;
+            document.getElementById('rescued').textContent = `RESCUED: ${game.rescued ? 'YES! +1000' : 'NO'}`;
+        }
+
+        // Game loop
+        function gameLoop() {
+            updatePlayer();
+            updateEnemies();
+            spawnWave();
+            checkWinCondition();
+            draw();
+            updateHUD();
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Restart
+        function restart() {
+            game.score = 0;
+            game.health = 1000;
+            game.rescued = false;
+            game.gameOver = false;
+            game.won = false;
+            game.helicoptersSpawned = 0;
+            game.tanksSpawned = 0;
+            game.soldiersSpawned = 0;
+            player.x = 100;
+            player.y = 400;
+            helicopters.length = 0;
+            tanks.length = 0;
+            soldiers.length = 0;
+            projectiles.length = 0;
+            initBuildings();
+            spawnHelicopter();
+            spawnTank();
+        }
+
+        // Start
+        initBuildings();
+        spawnHelicopter();
+        spawnTank();
+        gameLoop();
+    </script>
+</body>
+</html>

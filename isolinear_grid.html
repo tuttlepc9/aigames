@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Dilithium Clicker</title>
+  <style>
+    body {
+      background-color: #000;
+      color: #39FF14;
+      font-family: Arial, sans-serif;
+      text-align: center;
+      margin: 0;
+      padding: 20px;
+    }
+    h1 {
+      color: #FF9933;
+    }
+    #dilithium {
+      font-size: 24px;
+      margin: 10px 0;
+    }
+    button {
+      padding: 10px 20px;
+      margin: 10px;
+      font-size: 16px;
+      background-color: #FF9933;
+      border: none;
+      color: #000;
+      cursor: pointer;
+    }
+    .upgrade {
+      background-color: #33CCFF;
+      color: #000;
+    }
+    #log {
+      margin-top: 20px;
+      font-size: 14px;
+      color: #CCCCCC;
+      max-height: 100px;
+      overflow-y: auto;
+    }
+  </style>
+</head>
+<body>
+  <h1>🖖 Dilithium Clicker</h1>
+  <div id="dilithium">Dilithium: 0</div>
+  <button id="mineBtn">Mine Dilithium</button>
+  <div>
+    <button class="upgrade" id="upgrade1">Buy Crew Training (+1/click) - 10</button>
+    <button class="upgrade" id="upgrade2">Buy Warp Core Boost (+5/click) - 50</button>
+  </div>
+  <div id="log"></div>
+
+  <script>
+    let dilithium = 0;
+    let perClick = 1;
+    let autoRate = 0;
+    let upgrades = {
+      crew: { cost: 10, bonus: 1 },
+      warp: { cost: 50, bonus: 5 }
+    };
+
+    const dilithiumDisplay = document.getElementById('dilithium');
+    const mineBtn = document.getElementById('mineBtn');
+    const upgrade1 = document.getElementById('upgrade1');
+    const upgrade2 = document.getElementById('upgrade2');
+    const log = document.getElementById('log');
+
+    function updateDisplay() {
+      dilithiumDisplay.innerText = `Dilithium: ${Math.floor(dilithium)}`;
+    }
+
+    function logMessage(msg) {
+      const entry = document.createElement('div');
+      entry.innerText = msg;
+      log.prepend(entry);
+    }
+
+    mineBtn.addEventListener('click', () => {
+      dilithium += perClick;
+      playSound();
+      updateDisplay();
+    });
+
+    upgrade1.addEventListener('click', () => {
+      if (dilithium >= upgrades.crew.cost) {
+        dilithium -= upgrades.crew.cost;
+        perClick += upgrades.crew.bonus;
+        upgrades.crew.cost = Math.floor(upgrades.crew.cost * 1.5);
+        upgrade1.innerText = `Buy Crew Training (+1/click) - ${upgrades.crew.cost}`;
+        logMessage('Crew training complete. Efficiency increased.');
+        updateDisplay();
+      }
+    });
+
+    upgrade2.addEventListener('click', () => {
+      if (dilithium >= upgrades.warp.cost) {
+        dilithium -= upgrades.warp.cost;
+        perClick += upgrades.warp.bonus;
+        upgrades.warp.cost = Math.floor(upgrades.warp.cost * 2);
+        upgrade2.innerText = `Buy Warp Core Boost (+5/click) - ${upgrades.warp.cost}`;
+        logMessage('Warp core upgraded. Output amplified.');
+        updateDisplay();
+      }
+    });
+
+    function autoMine() {
+      dilithium += 0.5;
+      updateDisplay();
+    }
+
+    setInterval(autoMine, 1000);
+
+    function playSound() {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(600, ctx.currentTime);
+      gain.gain.setValueAtTime(0.2, ctx.currentTime);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.1);
+    }
+
+    updateDisplay();
+  </script>
+</body>
+</html>

@@ -60,7 +60,7 @@
         }
         
         button {
-            margin-top: 10px;
+            margin-top: 15px;
             padding: 10px 20px;
             font-size: 16px;
             background: #e74c3c;
@@ -84,16 +84,27 @@
             <div>Score: <span id="score">0</span> | Lives: <span id="lives">3</span> | Level: <span id="level">1</span></div>
             <div id="message" style="margin-top: 10px; font-size: 20px; color: #e74c3c;"></div>
         </div>
+        <button id="startBtn">Start Game</button>
     </div>
     
     <div id="instructions">
         <h2>🏛️ Politics 2025: Open the Government!</h2>
         <div class="controls">
-            <strong>Controls:</strong> Arrow Keys or WASD to move<br>
-            <strong>Goal:</strong> Reach the Capitol building to open the government!<br>
-            <strong>Avoid:</strong> Republicans (Red), Democrats (Blue), and the President (Purple)
+            <strong>LEVEL 1 - Navigate to Capitol:</strong><br>
+            Use Arrow Keys or WASD to dodge politicians and reach the Capitol building<br>
+            Avoid: Republicans (Red R), Democrats (Blue D), and the President (Purple P)<br>
+            <br>
+            <strong>LEVEL 2 - Choose Your Strategy:</strong><br>
+            Press 1, 2, or 3 to select your tactic to open the government:<br>
+            • Legitimate Negotiation (Low risk, Low success)<br>
+            • Bribery (High risk, Moderate success)<br>
+            • Press Conference (Medium risk, Medium success)<br>
+            <br>
+            <strong>LEVEL 3 - The Final Push:</strong><br>
+            You're so close! Just reach the goal one more time...<br>
+            <br>
+            You have 3 attempts to succeed in Level 2. Avoid scandals for bonus points!
         </div>
-        <button id="startBtn">Start Game</button>
     </div>
 
     <script>
@@ -101,10 +112,14 @@
         const ctx = canvas.getContext('2d');
         
         // Game state
-        let gameState = 'start'; // start, playing, won, lost
+        let gameState = 'start'; // start, playing, level2, level3, won, lost
         let score = 0;
         let lives = 3;
         let level = 1;
+        let negativeExternalities = 0;
+        let attemptsRemaining = 3;
+        let goalMoveCount = 0;
+        let goalMoveThreshold = 150; // Distance at which goal moves away
         let keys = {};
         
         // Player
@@ -194,19 +209,17 @@
             obstacles = [];
             
             // Add Republicans
-            const numRepublicans = 2 + level;
-            for (let i = 0; i < numRepublicans; i++) {
-                obstacles.push(new Politician('republican', 1.5 + level * 0.3));
+            for (let i = 0; i < 3; i++) {
+                obstacles.push(new Politician('republican', 2));
             }
             
             // Add Democrats
-            const numDemocrats = 2 + level;
-            for (let i = 0; i < numDemocrats; i++) {
-                obstacles.push(new Politician('democrat', 1.5 + level * 0.3));
+            for (let i = 0; i < 3; i++) {
+                obstacles.push(new Politician('democrat', 2));
             }
             
-            // Add President (one per level, faster)
-            obstacles.push(new Politician('president', 2 + level * 0.4));
+            // Add President (faster)
+            obstacles.push(new Politician('president', 2.5));
             
             // Reset player position
             player.x = 50;
@@ -230,6 +243,21 @@
         }
         
         function drawGoal() {
+            // In Level 3, add warning glow if player is getting close
+            if (gameState === 'level3' && goalMoveCount < 6) {
+                const distanceToGoal = Math.sqrt(
+                    Math.pow(player.x - goal.x, 2) + 
+                    Math.pow(player.y - goal.y, 2)
+                );
+                
+                if (distanceToGoal < goalMoveThreshold + 50) {
+                    // Pulsing red glow
+                    const pulse = Math.sin(Date.now() / 200) * 0.3 + 0.7;
+                    ctx.shadowBlur = 20;
+                    ctx.shadowColor = `rgba(231, 76, 60, ${pulse})`;
+                }
+            }
+            
             // Draw Capitol building
             ctx.fillStyle = '#ecf0f1';
             ctx.fillRect(goal.x, goal.y + 30, goal.width, goal.height - 30);
@@ -258,11 +286,21 @@
             ctx.lineTo(goal.x + goal.width / 2, goal.y + 30);
             ctx.stroke();
             
-            // Draw "OPEN" text
-            ctx.fillStyle = '#2ecc71';
-            ctx.font = 'bold 16px Arial';
-            ctx.textAlign = 'center';
-            ctx.fillText('OPEN', goal.x + goal.width / 2, goal.y + goal.height - 10);
+            // Reset shadow
+            ctx.shadowBlur = 0;
+            
+            // Draw text
+            if (gameState === 'level3' && goalMoveCount < 6) {
+                ctx.fillStyle = '#e74c3c';
+                ctx.font = 'bold 14px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText('UNSTABLE', goal.x + goal.width / 2, goal.y + goal.height - 10);
+            } else {
+                ctx.fillStyle = '#2ecc71';
+                ctx.font = 'bold 16px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText('OPEN', goal.x + goal.width / 2, goal.y + goal.height - 10);
+            }
         }
         
         function drawBackground() {
@@ -306,13 +344,59 @@
                     
                     if (lives <= 0) {
                         gameState = 'lost';
-                        showMessage('Government Remains Closed! Press Start to try again.');
+                        const msg = gameState === 'level3' ? 
+                            'So close, yet so far... Government Remains Closed!' :
+                            'Blocked by politicians! Government Remains Closed!';
+                        showMessage(msg);
                     } else {
                         // Reset player position
                         player.x = 50;
                         player.y = canvas.height / 2;
-                        showMessage(`Hit by a ${obstacle.type}! ${lives} lives left!`);
+                        const politicianType = obstacle.type === 'president' ? 'the President' : `a ${obstacle.type}`;
+                        showMessage(`Blocked by ${politicianType}! ${lives} ${lives === 1 ? 'life' : 'lives'} left!`);
                     }
+                    return;
+                }
+            }
+            
+            // Level 3: Check if player is getting close to goal - move it away!
+            if (gameState === 'level3') {
+                const distanceToGoal = Math.sqrt(
+                    Math.pow(player.x - goal.x, 2) + 
+                    Math.pow(player.y - goal.y, 2)
+                );
+                
+                // If player gets close and we haven't moved too many times yet
+                if (distanceToGoal < goalMoveThreshold && goalMoveCount < 6) {
+                    goalMoveCount++;
+                    
+                    // Move goal to a random position away from player
+                    const minDistance = 300;
+                    let newX, newY, distance;
+                    
+                    do {
+                        newX = Math.random() * (canvas.width - goal.width - 100) + 50;
+                        newY = Math.random() * (canvas.height - goal.height - 100) + 50;
+                        distance = Math.sqrt(
+                            Math.pow(player.x - newX, 2) + 
+                            Math.pow(player.y - newY, 2)
+                        );
+                    } while (distance < minDistance);
+                    
+                    goal.x = newX;
+                    goal.y = newY;
+                    
+                    const messages = [
+                        'Wait, not so fast! Goal posts moved...',
+                        'Oops! New requirements just came in...',
+                        'Actually, we need one more approval...',
+                        'Breaking: Committee moves deadline again!',
+                        'Just kidding! Try over there instead...',
+                        'Almost! But first, more paperwork...'
+                    ];
+                    showMessage(messages[goalMoveCount - 1] || 'The goal keeps moving...');
+                    score -= 25; // Penalty for goal moving
+                    updateUI();
                     return;
                 }
             }
@@ -322,16 +406,25 @@
                 player.x + player.width > goal.x &&
                 player.y < goal.y + goal.height &&
                 player.y + player.height > goal.y) {
-                level++;
-                score += 100 * level;
-                updateUI();
                 
-                if (level > 5) {
+                if (gameState === 'playing') {
+                    // Level 1 complete - go to level 2
+                    level = 2;
+                    score += 100;
+                    updateUI();
+                    gameState = 'level2';
+                    showMessage('You reached the Capitol! Now choose your strategy...');
+                } else if (gameState === 'level3') {
+                    // Level 3 complete - finally won!
                     gameState = 'won';
-                    showMessage('🎉 Government OPENED! You saved democracy!');
-                } else {
-                    showMessage(`Level ${level}! Government opens more...`);
-                    initLevel();
+                    score += 300;
+                    updateUI();
+                    
+                    if (goalMoveCount >= 6) {
+                        showMessage('🎉 Government FINALLY opened! After endless bureaucracy...');
+                    } else {
+                        showMessage('🎉 Government opened! You beat the system!');
+                    }
                 }
             }
         }
@@ -339,27 +432,199 @@
         function updateUI() {
             document.getElementById('score').textContent = score;
             document.getElementById('lives').textContent = lives;
-            document.getElementById('level').textContent = level;
+            const displayLevel = (gameState === 'level2' || level === 2) ? 2 : 
+                                 (gameState === 'level3' || level === 3) ? 3 : 1;
+            document.getElementById('level').textContent = displayLevel;
         }
         
         function showMessage(msg) {
             const messageEl = document.getElementById('message');
             messageEl.textContent = msg;
+            
+            // Longer timeout for level 2 results
+            const timeout = (gameState === 'won' || gameState === 'lost') ? 5000 : 2000;
+            
             setTimeout(() => {
                 if (gameState === 'playing') {
                     messageEl.textContent = '';
                 }
-            }, 2000);
+            }, timeout);
+        }
+        
+        // Level 2: Strategy Selection
+        const strategies = [
+            {
+                name: 'Legitimate Negotiation',
+                key: '1',
+                successChance: 0.30,
+                negativeChance: 0.15,
+                description: 'Low success, low risk',
+                color: '#2ecc71'
+            },
+            {
+                name: 'Bribery',
+                key: '2',
+                successChance: 0.50,
+                negativeChance: 0.70,
+                description: 'Moderate success, high risk',
+                color: '#e67e22'
+            },
+            {
+                name: 'Press Conference',
+                key: '3',
+                successChance: 0.50,
+                negativeChance: 0.50,
+                description: 'Medium success, medium risk',
+                color: '#3498db'
+            }
+        ];
+        
+        function drawLevel2() {
+            // Clear canvas
+            ctx.fillStyle = '#34495e';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Title
+            ctx.fillStyle = 'white';
+            ctx.font = 'bold 36px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('LEVEL 2: OPEN THE GOVERNMENT', canvas.width / 2, 60);
+            
+            // Subtitle
+            ctx.font = '20px Arial';
+            ctx.fillText(`Attempts Remaining: ${attemptsRemaining}`, canvas.width / 2, 100);
+            ctx.fillText(`Negative Externalities: ${negativeExternalities}`, canvas.width / 2, 130);
+            
+            // Draw strategy cards
+            const cardWidth = 220;
+            const cardHeight = 280;
+            const spacing = 30;
+            const startX = (canvas.width - (cardWidth * 3 + spacing * 2)) / 2;
+            const startY = 180;
+            
+            strategies.forEach((strategy, index) => {
+                const x = startX + (cardWidth + spacing) * index;
+                const y = startY;
+                
+                // Card background
+                ctx.fillStyle = strategy.color;
+                ctx.fillRect(x, y, cardWidth, cardHeight);
+                
+                // Card border
+                ctx.strokeStyle = 'white';
+                ctx.lineWidth = 3;
+                ctx.strokeRect(x, y, cardWidth, cardHeight);
+                
+                // Strategy name
+                ctx.fillStyle = 'white';
+                ctx.font = 'bold 20px Arial';
+                ctx.textAlign = 'center';
+                const lines = strategy.name.split(' ');
+                lines.forEach((line, i) => {
+                    ctx.fillText(line, x + cardWidth / 2, y + 30 + i * 25);
+                });
+                
+                // Key indicator
+                ctx.font = 'bold 48px Arial';
+                ctx.fillText(strategy.key, x + cardWidth / 2, y + 120);
+                
+                // Description
+                ctx.font = '16px Arial';
+                ctx.fillText(strategy.description, x + cardWidth / 2, y + 160);
+                
+                // Success rate
+                ctx.font = 'bold 18px Arial';
+                ctx.fillText(`Success: ${(strategy.successChance * 100).toFixed(0)}%`, x + cardWidth / 2, y + 200);
+                
+                // Risk
+                ctx.fillText(`Risk: ${(strategy.negativeChance * 100).toFixed(0)}%`, x + cardWidth / 2, y + 230);
+                
+                // Instructions
+                ctx.font = '14px Arial';
+                ctx.fillText(`Press ${strategy.key}`, x + cardWidth / 2, y + 260);
+            });
+            
+            // Instructions at bottom
+            ctx.fillStyle = '#ecf0f1';
+            ctx.font = '18px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('Choose wisely! You need to succeed before attempts run out.', canvas.width / 2, canvas.height - 40);
+        }
+        
+        function executeStrategy(strategyIndex) {
+            const strategy = strategies[strategyIndex];
+            attemptsRemaining--;
+            
+            const successRoll = Math.random();
+            const negativeRoll = Math.random();
+            
+            let message = `${strategy.name}: `;
+            
+            // Check for negative externalities
+            if (negativeRoll < strategy.negativeChance) {
+                negativeExternalities++;
+                message += '⚠️ Scandal! ';
+                score -= 50;
+            }
+            
+            // Check for success
+            if (successRoll < strategy.successChance) {
+                // Success in Level 2! Move to Level 3
+                level = 3;
+                score += 200;
+                if (negativeExternalities === 0) {
+                    score += 100; // Bonus for clean strategy
+                }
+                gameState = 'level3';
+                goalMoveCount = 0;
+                // Reset goal to standard position
+                goal.x = canvas.width - 80;
+                goal.y = canvas.height / 2 - 40;
+                initLevel();
+                message = `✓ Strategy worked! Now for the final step... Level 3!`;
+            } else {
+                // Failed attempt
+                message += '✗ Failed! ';
+                
+                if (attemptsRemaining <= 0) {
+                    gameState = 'lost';
+                    message = `Government remains CLOSED. Too many failed attempts! Scandals: ${negativeExternalities}`;
+                } else {
+                    message += `${attemptsRemaining} attempt(s) left.`;
+                }
+            }
+            
+            updateUI();
+            showMessage(message);
+        }
+        
+        function handleLevel2Input(e) {
+            if (gameState === 'level2') {
+                if (e.key === '1') {
+                    executeStrategy(0);
+                } else if (e.key === '2') {
+                    executeStrategy(1);
+                } else if (e.key === '3') {
+                    executeStrategy(2);
+                }
+            }
         }
         
         function gameLoop() {
+            // Check for Level 2 state first
+            if (gameState === 'level2') {
+                drawLevel2();
+                requestAnimationFrame(gameLoop);
+                return;
+            }
+            
             // Clear canvas
             ctx.fillStyle = '#ecf0f1';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
             
             drawBackground();
             
-            if (gameState === 'playing') {
+            if (gameState === 'playing' || gameState === 'level3') {
                 updatePlayer();
                 
                 // Update and draw obstacles
@@ -379,6 +644,19 @@
             drawGoal();
             drawPlayer();
             
+            // Level 3 indicator
+            if (gameState === 'level3') {
+                ctx.fillStyle = 'rgba(231, 76, 60, 0.9)';
+                ctx.font = 'bold 20px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText(`Goal Moved: ${goalMoveCount} times`, canvas.width / 2, 30);
+                
+                if (goalMoveCount >= 6) {
+                    ctx.fillStyle = '#2ecc71';
+                    ctx.fillText('Finally stable! Go get it!', canvas.width / 2, 55);
+                }
+            }
+            
             // Draw game over / win screen
             if (gameState === 'lost' || gameState === 'won') {
                 ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
@@ -389,17 +667,50 @@
                 ctx.textAlign = 'center';
                 
                 if (gameState === 'won') {
-                    ctx.fillText('GOVERNMENT OPENED!', canvas.width / 2, canvas.height / 2 - 40);
-                    ctx.font = '24px Arial';
-                    ctx.fillText(`Final Score: ${score}`, canvas.width / 2, canvas.height / 2 + 20);
+                    ctx.fillText('GOVERNMENT OPENED!', canvas.width / 2, canvas.height / 2 - 80);
+                    ctx.font = '28px Arial';
+                    ctx.fillText(`Final Score: ${score}`, canvas.width / 2, canvas.height / 2 - 20);
+                    
+                    // Show different messages based on experience
+                    ctx.font = '20px Arial';
+                    if (goalMoveCount >= 6) {
+                        ctx.fillStyle = '#e67e22';
+                        ctx.fillText('After endless red tape and moving goalposts...', canvas.width / 2, canvas.height / 2 + 15);
+                        ctx.fillText('The bureaucracy finally gave in!', canvas.width / 2, canvas.height / 2 + 40);
+                    } else if (goalMoveCount > 0) {
+                        ctx.fillStyle = '#f39c12';
+                        ctx.fillText(`Despite ${goalMoveCount} last-minute changes,`, canvas.width / 2, canvas.height / 2 + 15);
+                        ctx.fillText('you persevered!', canvas.width / 2, canvas.height / 2 + 40);
+                    }
+                    
+                    if (negativeExternalities === 0) {
+                        ctx.fillStyle = '#2ecc71';
+                        ctx.fillText('🏆 CLEAN VICTORY - No Scandals!', canvas.width / 2, canvas.height / 2 + 70);
+                    } else {
+                        ctx.fillStyle = '#e67e22';
+                        ctx.fillText(`⚠️ ${negativeExternalities} Scandal(s) on Record`, canvas.width / 2, canvas.height / 2 + 70);
+                    }
                 } else {
-                    ctx.fillText('GOVERNMENT CLOSED', canvas.width / 2, canvas.height / 2 - 40);
-                    ctx.font = '24px Arial';
-                    ctx.fillText(`Score: ${score}`, canvas.width / 2, canvas.height / 2 + 20);
+                    ctx.fillText('GOVERNMENT CLOSED', canvas.width / 2, canvas.height / 2 - 60);
+                    ctx.font = '28px Arial';
+                    ctx.fillText(`Score: ${score}`, canvas.width / 2, canvas.height / 2);
+                    
+                    if (level === 1) {
+                        ctx.font = '24px Arial';
+                        ctx.fillText('Caught by politicians!', canvas.width / 2, canvas.height / 2 + 40);
+                    } else if (level === 2) {
+                        ctx.font = '24px Arial';
+                        ctx.fillText(`Failed with ${negativeExternalities} scandal(s)`, canvas.width / 2, canvas.height / 2 + 40);
+                    } else if (level === 3) {
+                        ctx.font = '24px Arial';
+                        ctx.fillText('So close to opening it...', canvas.width / 2, canvas.height / 2 + 40);
+                        ctx.fillText(`Goal moved ${goalMoveCount} times before you gave up`, canvas.width / 2, canvas.height / 2 + 70);
+                    }
                 }
                 
+                ctx.fillStyle = 'white';
                 ctx.font = '20px Arial';
-                ctx.fillText('Press Start to Play Again', canvas.width / 2, canvas.height / 2 + 60);
+                ctx.fillText('Press Start to Play Again', canvas.width / 2, canvas.height / 2 + 110);
             } else if (gameState === 'start') {
                 ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -416,6 +727,7 @@
         // Event listeners
         document.addEventListener('keydown', (e) => {
             keys[e.key] = true;
+            handleLevel2Input(e);
         });
         
         document.addEventListener('keyup', (e) => {
@@ -423,13 +735,19 @@
         });
         
         document.getElementById('startBtn').addEventListener('click', () => {
-            if (gameState !== 'playing') {
+            if (gameState !== 'playing' && gameState !== 'level2' && gameState !== 'level3') {
                 gameState = 'playing';
                 score = 0;
                 lives = 3;
                 level = 1;
+                negativeExternalities = 0;
+                attemptsRemaining = 3;
+                goalMoveCount = 0;
                 updateUI();
                 initLevel();
+                // Reset goal to original position
+                goal.x = canvas.width - 80;
+                goal.y = canvas.height / 2 - 40;
                 document.getElementById('message').textContent = '';
             }
         });

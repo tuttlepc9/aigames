@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Presidential Press Sweeper</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Georgia', serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            color: white;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        h1 {
+            font-size: 2.5em;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            font-size: 1.2em;
+            opacity: 0.9;
+            font-style: italic;
+        }
+
+        .stats {
+            display: flex;
+            gap: 30px;
+            justify-content: center;
+            margin-bottom: 20px;
+            font-size: 1.1em;
+            background: rgba(255,255,255,0.1);
+            padding: 15px 30px;
+            border-radius: 10px;
+            backdrop-filter: blur(10px);
+        }
+
+        .stat-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .game-container {
+            position: relative;
+            background: rgba(255,255,255,0.05);
+            padding: 20px;
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(20, 30px);
+            grid-template-rows: repeat(20, 30px);
+            gap: 2px;
+            background: rgba(0,0,0,0.2);
+            padding: 5px;
+            border-radius: 5px;
+        }
+
+        .cell {
+            width: 30px;
+            height: 30px;
+            background: linear-gradient(145deg, #4a6fa5, #3d5a8c);
+            border: 2px solid #5a7fb8;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 14px;
+            transition: all 0.1s;
+            user-select: none;
+        }
+
+        .cell:hover:not(.revealed) {
+            transform: scale(1.05);
+            border-color: #7a9fd8;
+        }
+
+        .cell.revealed {
+            background: linear-gradient(145deg, #e8f4f8, #d4e8f0);
+            border-color: #c0d8e8;
+            cursor: default;
+            color: #2c3e50;
+        }
+
+        .cell.mine-hit {
+            background: linear-gradient(145deg, #ff4444, #cc0000);
+            animation: shake 0.5s;
+        }
+
+        .number-1 { color: #0066cc; }
+        .number-2 { color: #00aa00; }
+        .number-3 { color: #cc0000; }
+        .number-4 { color: #000088; }
+        .number-5 { color: #880000; }
+        .number-6 { color: #008888; }
+        .number-7 { color: #000000; }
+        .number-8 { color: #888888; }
+
+        .particle {
+            position: absolute;
+            pointer-events: none;
+            font-size: 24px;
+            animation: explode 1s forwards;
+        }
+
+        .big-emoji {
+            position: absolute;
+            pointer-events: none;
+            font-size: 60px;
+            animation: emoji-explode 1.5s forwards;
+            z-index: 999;
+        }
+
+        @keyframes explode {
+            0% {
+                opacity: 1;
+                transform: translate(0, 0) scale(1) rotate(0deg);
+            }
+            100% {
+                opacity: 0;
+                transform: translate(var(--tx), var(--ty)) scale(0.3) rotate(720deg);
+            }
+        }
+
+        @keyframes emoji-explode {
+            0% {
+                opacity: 1;
+                transform: translate(-50%, -50%) scale(0.5) rotate(0deg);
+            }
+            40% {
+                opacity: 1;
+                transform: translate(calc(-50% + var(--tx)), calc(-50% + var(--ty))) scale(3) rotate(180deg);
+            }
+            100% {
+                opacity: 0;
+                transform: translate(calc(-50% + var(--tx) * 1.5), calc(-50% + var(--ty) * 1.5)) scale(0.5) rotate(720deg);
+            }
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px) rotate(-2deg); }
+            75% { transform: translateX(5px) rotate(2deg); }
+        }
+
+        .explosion-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 3em;
+            font-weight: bold;
+            color: #ff0000;
+            text-shadow: 0 0 20px #ff0000, 0 0 40px #ff0000;
+            pointer-events: none;
+            animation: explosion-fade 2s forwards;
+            z-index: 1000;
+        }
+
+        @keyframes explosion-fade {
+            0% {
+                opacity: 1;
+                transform: translate(-50%, -50%) scale(0.5);
+            }
+            50% {
+                opacity: 1;
+                transform: translate(-50%, -50%) scale(1.5);
+            }
+            100% {
+                opacity: 0;
+                transform: translate(-50%, -50%) scale(2);
+            }
+        }
+
+        .win-message {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: linear-gradient(135deg, #2ecc71, #27ae60);
+            padding: 40px 60px;
+            border-radius: 20px;
+            box-shadow: 0 10px 50px rgba(0,0,0,0.5);
+            text-align: center;
+            font-size: 2em;
+            font-weight: bold;
+            z-index: 2000;
+            animation: win-appear 0.5s;
+        }
+
+        @keyframes win-appear {
+            from {
+                opacity: 0;
+                transform: translate(-50%, -50%) scale(0.5);
+            }
+            to {
+                opacity: 1;
+                transform: translate(-50%, -50%) scale(1);
+            }
+        }
+
+        .credits {
+            margin-top: 20px;
+            text-align: center;
+            background: rgba(255,255,255,0.1);
+            padding: 20px;
+            border-radius: 10px;
+            backdrop-filter: blur(10px);
+        }
+
+        .credits h3 {
+            margin-bottom: 10px;
+            color: #ffd700;
+        }
+
+        .credits p {
+            font-size: 1.1em;
+            margin: 5px 0;
+        }
+
+        .reset-btn {
+            margin-top: 20px;
+            padding: 12px 30px;
+            font-size: 1.1em;
+            background: linear-gradient(145deg, #3498db, #2980b9);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+
+        .reset-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 5px 20px rgba(52, 152, 219, 0.5);
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🏛️ Presidential Press Sweeper 🏛️</h1>
+        <div class="subtitle">Navigate the political minefield and open the government!</div>
+    </div>
+
+    <div class="stats">
+        <div class="stat-item">
+            <span>📰 Press Hits:</span>
+            <span id="mines-hit">0</span>
+        </div>
+        <div class="stat-item">
+            <span>✅ Safe Departments:</span>
+            <span id="revealed">0</span>
+            <span>/ 340</span>
+        </div>
+    </div>
+
+    <div class="game-container">
+        <div id="grid" class="grid"></div>
+    </div>
+
+    <button class="reset-btn" onclick="resetGame()">🔄 New Term</button>
+
+    <div class="credits">
+        <h3>💡 Concept Created By:</h3>
+        <p><strong>[ΦΗΤΦ] BethK</strong></p>
+        <p><strong>[ΦΗΤΦ] PhillyEagle</strong></p>
+        <p style="margin-top: 10px; font-size: 0.9em; opacity: 0.8;">Thanks for the brilliant satirical game idea! 🎮</p>
+    </div>
+
+    <script>
+        const GRID_SIZE = 20;
+        const MINE_COUNT = 60;
+        const NEWS_OUTLETS = ['📺 FOX', '📺 CNN', '📺 MSNBC', '📺 NBC', '📺 ABC', '📺 CBS'];
+        
+        const SCANDALS = [
+            { text: 'GOLF TRIP!', emojis: ['🏌️', '⛳', '🏌️‍♂️'] },
+            { text: 'LEAKED PHOTO!', emojis: ['📸', '📷', '🤳'] },
+            { text: 'TWITTER MELTDOWN!', emojis: ['📱', '💬', '😤'] },
+            { text: 'POLICY FLIP-FLOP!', emojis: ['🔄', '↩️', '🔃'] },
+            { text: 'VACATION SCANDAL!', emojis: ['🏝️', '✈️', '🌴'] },
+            { text: 'AWKWARD HANDSHAKE!', emojis: ['🤝', '😬', '👋'] },
+            { text: 'CLASSIFIED DOCS!', emojis: ['📄', '🔒', '📁'] },
+            { text: 'MIDNIGHT TWEET!', emojis: ['🌙', '📱', '😴'] },
+            { text: 'EXECUTIVE ORDER!', emojis: ['📜', '✍️', '⚖️'] },
+            { text: 'DIPLOMATIC INCIDENT!', emojis: ['🌍', '💥', '🤦'] },
+            { text: 'FUNDRAISER EXPOSED!', emojis: ['💰', '💵', '🏦'] },
+            { text: 'HOT MIC MOMENT!', emojis: ['🎤', '😱', '🔊'] }
+        ];
+        
+        let grid = [];
+        let mines = [];
+        let revealed = 0;
+        let minesHit = 0;
+
+        function initGame() {
+            grid = Array(GRID_SIZE).fill().map(() => Array(GRID_SIZE).fill(0));
+            mines = [];
+            revealed = 0;
+            minesHit = 0;
+            
+            // Place mines randomly
+            while (mines.length < MINE_COUNT) {
+                const row = Math.floor(Math.random() * GRID_SIZE);
+                const col = Math.floor(Math.random() * GRID_SIZE);
+                const key = `${row},${col}`;
+                
+                if (!mines.includes(key)) {
+                    mines.push(key);
+                    grid[row][col] = -1;
+                }
+            }
+            
+            // Calculate numbers
+            for (let row = 0; row < GRID_SIZE; row++) {
+                for (let col = 0; col < GRID_SIZE; col++) {
+                    if (grid[row][col] !== -1) {
+                        let count = 0;
+                        for (let dr = -1; dr <= 1; dr++) {
+                            for (let dc = -1; dc <= 1; dc++) {
+                                const nr = row + dr;
+                                const nc = col + dc;
+                                if (nr >= 0 && nr < GRID_SIZE && nc >= 0 && nc < GRID_SIZE) {
+                                    if (grid[nr][nc] === -1) count++;
+                                }
+                            }
+                        }
+                        grid[row][col] = count;
+                    }
+                }
+            }
+            
+            renderGrid();
+            updateStats();
+        }
+
+        function renderGrid() {
+            const gridEl = document.getElementById('grid');
+            gridEl.innerHTML = '';
+            
+            for (let row = 0; row < GRID_SIZE; row++) {
+                for (let col = 0; col < GRID_SIZE; col++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'cell';
+                    cell.dataset.row = row;
+                    cell.dataset.col = col;
+                    cell.onclick = () => revealCell(row, col);
+                    gridEl.appendChild(cell);
+                }
+            }
+        }
+
+        function revealCell(row, col) {
+            const cell = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
+            if (cell.classList.contains('revealed')) return;
+            
+            cell.classList.add('revealed');
+            
+            if (grid[row][col] === -1) {
+                // Hit a mine (news outlet)!
+                cell.classList.add('mine-hit');
+                const newsOutlet = NEWS_OUTLETS[Math.floor(Math.random() * NEWS_OUTLETS.length)];
+                cell.textContent = newsOutlet;
+                minesHit++;
+                createExplosion(cell, newsOutlet);
+            } else {
+                revealed++;
+                if (grid[row][col] > 0) {
+                    cell.textContent = grid[row][col];
+                    cell.classList.add(`number-${grid[row][col]}`);
+                } else {
+                    // Auto-reveal adjacent cells if 0
+                    for (let dr = -1; dr <= 1; dr++) {
+                        for (let dc = -1; dc <= 1; dc++) {
+                            const nr = row + dr;
+                            const nc = col + dc;
+                            if (nr >= 0 && nr < GRID_SIZE && nc >= 0 && nc < GRID_SIZE) {
+                                const adjacentCell = document.querySelector(`[data-row="${nr}"][data-col="${nc}"]`);
+                                if (adjacentCell && !adjacentCell.classList.contains('revealed')) {
+                                    setTimeout(() => revealCell(nr, nc), 20);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            
+            updateStats();
+            checkWin();
+        }
+
+        function createExplosion(cell, newsOutlet) {
+            const rect = cell.getBoundingClientRect();
+            const particles = ['💥', '💢', '📰', '🔥', '⚡', '💣', '📡'];
+            
+            // Pick a random scandal
+            const scandal = SCANDALS[Math.floor(Math.random() * SCANDALS.length)];
+            
+            // Create explosion text
+            const explosionText = document.createElement('div');
+            explosionText.className = 'explosion-text';
+            explosionText.textContent = newsOutlet + ' ' + scandal.text;
+            document.body.appendChild(explosionText);
+            setTimeout(() => explosionText.remove(), 2000);
+            
+            // Create BIG emoji explosions - these scale up huge!
+            for (let i = 0; i < 8; i++) {
+                const bigEmoji = document.createElement('div');
+                bigEmoji.className = 'big-emoji';
+                bigEmoji.textContent = scandal.emojis[Math.floor(Math.random() * scandal.emojis.length)];
+                bigEmoji.style.left = rect.left + rect.width / 2 + 'px';
+                bigEmoji.style.top = rect.top + rect.height / 2 + 'px';
+                
+                const angle = (Math.PI * 2 * i) / 8;
+                const distance = 150 + Math.random() * 100;
+                bigEmoji.style.setProperty('--tx', Math.cos(angle) * distance + 'px');
+                bigEmoji.style.setProperty('--ty', Math.sin(angle) * distance + 'px');
+                
+                document.body.appendChild(bigEmoji);
+                setTimeout(() => bigEmoji.remove(), 1500);
+            }
+            
+            // Create regular particles
+            for (let i = 0; i < 30; i++) {
+                const particle = document.createElement('div');
+                particle.className = 'particle';
+                particle.textContent = particles[Math.floor(Math.random() * particles.length)];
+                particle.style.left = rect.left + rect.width / 2 + 'px';
+                particle.style.top = rect.top + rect.height / 2 + 'px';
+                
+                const angle = (Math.PI * 2 * i) / 30;
+                const distance = 100 + Math.random() * 100;
+                particle.style.setProperty('--tx', Math.cos(angle) * distance + 'px');
+                particle.style.setProperty('--ty', Math.sin(angle) * distance + 'px');
+                
+                document.body.appendChild(particle);
+                setTimeout(() => particle.remove(), 1000);
+            }
+            
+            // Screen shake
+            document.body.style.animation = 'shake 0.5s';
+            setTimeout(() => document.body.style.animation = '', 500);
+        }
+
+        function updateStats() {
+            document.getElementById('mines-hit').textContent = minesHit;
+            document.getElementById('revealed').textContent = revealed;
+        }
+
+        function checkWin() {
+            if (revealed === GRID_SIZE * GRID_SIZE - MINE_COUNT) {
+                const winMsg = document.createElement('div');
+                winMsg.className = 'win-message';
+                winMsg.innerHTML = `
+                    🎉 GOVERNMENT OPENED! 🎉<br>
+                    <div style="font-size: 0.6em; margin-top: 10px;">
+                        Press avoided: ${MINE_COUNT - minesHit} times<br>
+                        Press scandals: ${minesHit}
+                    </div>
+                `;
+                document.body.appendChild(winMsg);
+                setTimeout(() => winMsg.remove(), 5000);
+            }
+        }
+
+        function resetGame() {
+            document.querySelectorAll('.win-message').forEach(el => el.remove());
+            initGame();
+        }
+
+        // Initialize game on load
+        initGame();
+    </script>
+</body>
+</html>

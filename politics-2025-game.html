@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Politics 2025: Open the Government</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            font-family: 'Arial', sans-serif;
+            color: white;
+        }
+        
+        #gameContainer {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+        }
+        
+        canvas {
+            display: block;
+            border: 3px solid #2c3e50;
+            border-radius: 5px;
+            background: #ecf0f1;
+        }
+        
+        #ui {
+            margin-top: 15px;
+            text-align: center;
+            color: #2c3e50;
+            font-size: 18px;
+            font-weight: bold;
+        }
+        
+        #instructions {
+            max-width: 600px;
+            margin-top: 20px;
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            text-align: center;
+        }
+        
+        #instructions h2 {
+            margin-top: 0;
+            font-size: 24px;
+        }
+        
+        .controls {
+            margin: 10px 0;
+            font-size: 16px;
+        }
+        
+        button {
+            margin-top: 10px;
+            padding: 10px 20px;
+            font-size: 16px;
+            background: #e74c3c;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background 0.3s;
+        }
+        
+        button:hover {
+            background: #c0392b;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <canvas id="gameCanvas" width="800" height="600"></canvas>
+        <div id="ui">
+            <div>Score: <span id="score">0</span> | Lives: <span id="lives">3</span> | Level: <span id="level">1</span></div>
+            <div id="message" style="margin-top: 10px; font-size: 20px; color: #e74c3c;"></div>
+        </div>
+    </div>
+    
+    <div id="instructions">
+        <h2>🏛️ Politics 2025: Open the Government!</h2>
+        <div class="controls">
+            <strong>Controls:</strong> Arrow Keys or WASD to move<br>
+            <strong>Goal:</strong> Reach the Capitol building to open the government!<br>
+            <strong>Avoid:</strong> Republicans (Red), Democrats (Blue), and the President (Purple)
+        </div>
+        <button id="startBtn">Start Game</button>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Game state
+        let gameState = 'start'; // start, playing, won, lost
+        let score = 0;
+        let lives = 3;
+        let level = 1;
+        let keys = {};
+        
+        // Player
+        const player = {
+            x: 50,
+            y: canvas.height / 2,
+            width: 30,
+            height: 30,
+            speed: 4,
+            color: '#27ae60'
+        };
+        
+        // Goal (Capitol building)
+        const goal = {
+            x: canvas.width - 80,
+            y: canvas.height / 2 - 40,
+            width: 60,
+            height: 80
+        };
+        
+        // Obstacles (Politicians)
+        let obstacles = [];
+        
+        class Politician {
+            constructor(type, speed) {
+                this.type = type; // 'republican', 'democrat', 'president'
+                this.width = 35;
+                this.height = 35;
+                this.x = Math.random() * (canvas.width - 200) + 100;
+                this.y = Math.random() * (canvas.height - 100) + 50;
+                this.speed = speed;
+                this.angle = Math.random() * Math.PI * 2;
+                this.dx = Math.cos(this.angle) * this.speed;
+                this.dy = Math.sin(this.angle) * this.speed;
+                
+                if (type === 'republican') {
+                    this.color = '#e74c3c';
+                    this.label = 'R';
+                } else if (type === 'democrat') {
+                    this.color = '#3498db';
+                    this.label = 'D';
+                } else if (type === 'president') {
+                    this.color = '#9b59b6';
+                    this.label = 'P';
+                    this.width = 45;
+                    this.height = 45;
+                }
+            }
+            
+            update() {
+                this.x += this.dx;
+                this.y += this.dy;
+                
+                // Bounce off walls
+                if (this.x <= 0 || this.x >= canvas.width - this.width) {
+                    this.dx *= -1;
+                }
+                if (this.y <= 0 || this.y >= canvas.height - this.height) {
+                    this.dy *= -1;
+                }
+                
+                // Keep within bounds
+                this.x = Math.max(0, Math.min(canvas.width - this.width, this.x));
+                this.y = Math.max(0, Math.min(canvas.height - this.height, this.y));
+            }
+            
+            draw() {
+                // Draw politician as a rectangle with party color
+                ctx.fillStyle = this.color;
+                ctx.fillRect(this.x, this.y, this.width, this.height);
+                
+                // Draw border
+                ctx.strokeStyle = '#2c3e50';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(this.x, this.y, this.width, this.height);
+                
+                // Draw label
+                ctx.fillStyle = 'white';
+                ctx.font = 'bold 20px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(this.label, this.x + this.width / 2, this.y + this.height / 2);
+            }
+        }
+        
+        function initLevel() {
+            obstacles = [];
+            
+            // Add Republicans
+            const numRepublicans = 2 + level;
+            for (let i = 0; i < numRepublicans; i++) {
+                obstacles.push(new Politician('republican', 1.5 + level * 0.3));
+            }
+            
+            // Add Democrats
+            const numDemocrats = 2 + level;
+            for (let i = 0; i < numDemocrats; i++) {
+                obstacles.push(new Politician('democrat', 1.5 + level * 0.3));
+            }
+            
+            // Add President (one per level, faster)
+            obstacles.push(new Politician('president', 2 + level * 0.4));
+            
+            // Reset player position
+            player.x = 50;
+            player.y = canvas.height / 2;
+        }
+        
+        function drawPlayer() {
+            // Draw player as a green bureaucrat
+            ctx.fillStyle = player.color;
+            ctx.fillRect(player.x, player.y, player.width, player.height);
+            
+            ctx.strokeStyle = '#1e8449';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(player.x, player.y, player.width, player.height);
+            
+            // Draw briefcase icon
+            ctx.fillStyle = '#1e8449';
+            ctx.fillRect(player.x + 8, player.y + 10, 14, 12);
+            ctx.fillStyle = '#27ae60';
+            ctx.fillRect(player.x + 12, player.y + 8, 6, 4);
+        }
+        
+        function drawGoal() {
+            // Draw Capitol building
+            ctx.fillStyle = '#ecf0f1';
+            ctx.fillRect(goal.x, goal.y + 30, goal.width, goal.height - 30);
+            
+            // Draw dome
+            ctx.beginPath();
+            ctx.arc(goal.x + goal.width / 2, goal.y + 30, 25, Math.PI, 0);
+            ctx.fillStyle = '#bdc3c7';
+            ctx.fill();
+            ctx.strokeStyle = '#7f8c8d';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            
+            // Draw flag
+            ctx.fillStyle = '#e74c3c';
+            ctx.beginPath();
+            ctx.moveTo(goal.x + goal.width / 2, goal.y);
+            ctx.lineTo(goal.x + goal.width / 2 + 15, goal.y + 5);
+            ctx.lineTo(goal.x + goal.width / 2, goal.y + 10);
+            ctx.fill();
+            
+            ctx.strokeStyle = '#34495e';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(goal.x + goal.width / 2, goal.y);
+            ctx.lineTo(goal.x + goal.width / 2, goal.y + 30);
+            ctx.stroke();
+            
+            // Draw "OPEN" text
+            ctx.fillStyle = '#2ecc71';
+            ctx.font = 'bold 16px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('OPEN', goal.x + goal.width / 2, goal.y + goal.height - 10);
+        }
+        
+        function drawBackground() {
+            // Draw grid floor
+            ctx.strokeStyle = '#d5dbdb';
+            ctx.lineWidth = 1;
+            for (let x = 0; x < canvas.width; x += 40) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, canvas.height);
+                ctx.stroke();
+            }
+            for (let y = 0; y < canvas.height; y += 40) {
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(canvas.width, y);
+                ctx.stroke();
+            }
+        }
+        
+        function updatePlayer() {
+            if (keys['ArrowLeft'] || keys['a'] || keys['A']) player.x -= player.speed;
+            if (keys['ArrowRight'] || keys['d'] || keys['D']) player.x += player.speed;
+            if (keys['ArrowUp'] || keys['w'] || keys['W']) player.y -= player.speed;
+            if (keys['ArrowDown'] || keys['s'] || keys['S']) player.y += player.speed;
+            
+            // Keep player in bounds
+            player.x = Math.max(0, Math.min(canvas.width - player.width, player.x));
+            player.y = Math.max(0, Math.min(canvas.height - player.height, player.y));
+        }
+        
+        function checkCollisions() {
+            // Check collision with obstacles
+            for (let obstacle of obstacles) {
+                if (player.x < obstacle.x + obstacle.width &&
+                    player.x + player.width > obstacle.x &&
+                    player.y < obstacle.y + obstacle.height &&
+                    player.y + player.height > obstacle.y) {
+                    lives--;
+                    updateUI();
+                    
+                    if (lives <= 0) {
+                        gameState = 'lost';
+                        showMessage('Government Remains Closed! Press Start to try again.');
+                    } else {
+                        // Reset player position
+                        player.x = 50;
+                        player.y = canvas.height / 2;
+                        showMessage(`Hit by a ${obstacle.type}! ${lives} lives left!`);
+                    }
+                    return;
+                }
+            }
+            
+            // Check collision with goal
+            if (player.x < goal.x + goal.width &&
+                player.x + player.width > goal.x &&
+                player.y < goal.y + goal.height &&
+                player.y + player.height > goal.y) {
+                level++;
+                score += 100 * level;
+                updateUI();
+                
+                if (level > 5) {
+                    gameState = 'won';
+                    showMessage('🎉 Government OPENED! You saved democracy!');
+                } else {
+                    showMessage(`Level ${level}! Government opens more...`);
+                    initLevel();
+                }
+            }
+        }
+        
+        function updateUI() {
+            document.getElementById('score').textContent = score;
+            document.getElementById('lives').textContent = lives;
+            document.getElementById('level').textContent = level;
+        }
+        
+        function showMessage(msg) {
+            const messageEl = document.getElementById('message');
+            messageEl.textContent = msg;
+            setTimeout(() => {
+                if (gameState === 'playing') {
+                    messageEl.textContent = '';
+                }
+            }, 2000);
+        }
+        
+        function gameLoop() {
+            // Clear canvas
+            ctx.fillStyle = '#ecf0f1';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            drawBackground();
+            
+            if (gameState === 'playing') {
+                updatePlayer();
+                
+                // Update and draw obstacles
+                for (let obstacle of obstacles) {
+                    obstacle.update();
+                    obstacle.draw();
+                }
+                
+                checkCollisions();
+            } else {
+                // Still draw obstacles even when not playing
+                for (let obstacle of obstacles) {
+                    obstacle.draw();
+                }
+            }
+            
+            drawGoal();
+            drawPlayer();
+            
+            // Draw game over / win screen
+            if (gameState === 'lost' || gameState === 'won') {
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                ctx.fillStyle = 'white';
+                ctx.font = 'bold 48px Arial';
+                ctx.textAlign = 'center';
+                
+                if (gameState === 'won') {
+                    ctx.fillText('GOVERNMENT OPENED!', canvas.width / 2, canvas.height / 2 - 40);
+                    ctx.font = '24px Arial';
+                    ctx.fillText(`Final Score: ${score}`, canvas.width / 2, canvas.height / 2 + 20);
+                } else {
+                    ctx.fillText('GOVERNMENT CLOSED', canvas.width / 2, canvas.height / 2 - 40);
+                    ctx.font = '24px Arial';
+                    ctx.fillText(`Score: ${score}`, canvas.width / 2, canvas.height / 2 + 20);
+                }
+                
+                ctx.font = '20px Arial';
+                ctx.fillText('Press Start to Play Again', canvas.width / 2, canvas.height / 2 + 60);
+            } else if (gameState === 'start') {
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                ctx.fillStyle = 'white';
+                ctx.font = 'bold 36px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText('Press Start to Begin!', canvas.width / 2, canvas.height / 2);
+            }
+            
+            requestAnimationFrame(gameLoop);
+        }
+        
+        // Event listeners
+        document.addEventListener('keydown', (e) => {
+            keys[e.key] = true;
+        });
+        
+        document.addEventListener('keyup', (e) => {
+            keys[e.key] = false;
+        });
+        
+        document.getElementById('startBtn').addEventListener('click', () => {
+            if (gameState !== 'playing') {
+                gameState = 'playing';
+                score = 0;
+                lives = 3;
+                level = 1;
+                updateUI();
+                initLevel();
+                document.getElementById('message').textContent = '';
+            }
+        });
+        
+        // Initialize
+        initLevel();
+        updateUI();
+        gameLoop();
+    </script>
+</body>
+</html>

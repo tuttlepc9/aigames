@@ -50,10 +50,10 @@
         const ctx = canvas.getContext('2d');
         const statusDiv = document.getElementById('status');
 
-        // SmartFoxServer configuration
-        const SFS_IP = "162.120.186.91";
+        // SmartFoxServer configuration - UPDATED IP
+        const SFS_IP = "149.56.148.211";  // <-- CORRECT IP
         const SFS_PORT = 57855;
-        const ZONE_NAME = "BasicExamples"; // Change if your zone is different
+        const ZONE_NAME = "BasicExamples"; // Change if needed
 
         let sfs = null;
         let myUser = null;
@@ -63,7 +63,6 @@
             statusDiv.textContent = "Status: Connecting...";
             statusDiv.className = "connecting";
 
-            // Create configuration object
             const config = {
                 host: SFS_IP,
                 port: SFS_PORT,
@@ -71,10 +70,9 @@
                 debug: true
             };
 
-            // Create SmartFox instance
             sfs = new SFS2X.SmartFox(config);
 
-            // Add event listeners
+            // Event listeners
             sfs.addEventListener(SFS2X.SFSEvent.CONNECTION, onConnection);
             sfs.addEventListener(SFS2X.SFSEvent.CONNECTION_LOST, onConnectionLost);
             sfs.addEventListener(SFS2X.SFSEvent.LOGIN, onLogin);
@@ -83,7 +81,6 @@
             sfs.addEventListener(SFS2X.SFSEvent.ROOM_JOIN_ERROR, onRoomJoinError);
             sfs.addEventListener(SFS2X.SFSEvent.PUBLIC_MESSAGE, onPublicMessage);
 
-            // Attempt connection
             sfs.connect();
         }
 
@@ -111,7 +108,7 @@
             statusDiv.textContent = `Status: Logged in as ${myUser.name}`;
             statusDiv.className = "connected";
 
-            // Join default room
+            // Join "The Lobby" or first available room
             const room = sfs.roomManager.getRoomByName("The Lobby") || sfs.roomManager.getRoomList()[0];
             if (room) {
                 sfs.send(new SFS2X.JoinRoomRequest(room.name));
@@ -125,7 +122,7 @@
 
         function onRoomJoin(event) {
             statusDiv.textContent = `Status: Joined room "${event.room.name}"`;
-            draw(); // Initial draw
+            draw();
             startGameLoop();
         }
 
@@ -137,26 +134,23 @@
             console.log("[" + event.sender.name + "]: " + event.message);
         }
 
-        // Simple Canvas Drawing
+        // Canvas Drawing
         function draw() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // Background
             ctx.fillStyle = '#111';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-            // Title
             ctx.fillStyle = '#0f0';
             ctx.font = '24px monospace';
             ctx.textAlign = 'center';
             ctx.fillText('SmartFoxServer 2X Canvas Test', canvas.width / 2, 50);
 
-            // Connection status
             ctx.font = '18px monospace';
             ctx.fillStyle = myUser ? '#0f0' : '#f00';
             ctx.fillText(myUser ? `Connected as: ${myUser.name}` : 'Not connected', canvas.width / 2, 100);
 
-            // Draw a simple pulsing circle
+            // Pulsing circle
             const time = Date.now() * 0.001;
             const pulse = Math.sin(time * 3) * 0.5 + 0.5;
             const radius = 30 + pulse * 20;
@@ -165,34 +159,33 @@
             ctx.arc(canvas.width / 2, canvas.height / 2, radius, 0, Math.PI * 2);
             ctx.fillStyle = `rgba(0, 255, 0, ${0.5 + pulse * 0.5})`;
             ctx.fill();
-
             ctx.strokeStyle = '#0f0';
             ctx.lineWidth = 3;
             ctx.stroke();
 
-            // Instructions
+            // Server info
             ctx.fillStyle = '#aaa';
             ctx.font = '16px monospace';
-            ctx.fillText('Connection: 162.120.186.91:57855', canvas.width / 2, canvas.height - 60);
-            ctx.fillText('Open in multiple tabs to see multiplayer sync!', canvas.width / 2, canvas.height - 30);
+            ctx.fillText(`Server: ${SFS_IP}:${SFS_PORT}`, canvas.width / 2, canvas.height - 60);
+            ctx.fillText('Click canvas to send chat | Open in multiple tabs!', canvas.width / 2, canvas.height - 30);
         }
 
         function startGameLoop() {
-            setInterval(draw, 16); // ~60 FPS
+            setInterval(draw, 16);
         }
 
-        // Start everything
-        window.onload = () => {
-            draw(); // Initial draw
-            initSFS();
-        };
-
-        // Optional: Send test message on click
+        // Click to send public message
         canvas.addEventListener('click', () => {
             if (sfs && sfs.isConnected && sfs.lastJoinedRoom) {
-                sfs.send(new SFS2X.PublicMessageRequest("Hello from Canvas!"));
+                sfs.send(new SFS2X.PublicMessageRequest(`Hello from ${myUser ? myUser.name : 'Canvas'}!`));
             }
         });
+
+        // Start
+        window.onload = () => {
+            draw();
+            initSFS();
+        };
     </script>
 </body>
 </html>

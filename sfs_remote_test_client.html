@@ -1,12 +1,12 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>SmartFoxServer 2X Test Client</title>
+    <title>SmartFoxServer 2X Test Client - Diagnostic Edition</title>
     <style>
         body {
             font-family: Arial, sans-serif;
-            max-width: 800px;
-            margin: 50px auto;
+            max-width: 900px;
+            margin: 30px auto;
             padding: 20px;
             background-color: #f5f5f5;
         }
@@ -18,16 +18,22 @@
         }
         h1 {
             color: #333;
+            margin-bottom: 5px;
+        }
+        .subtitle {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 20px;
         }
         .form-group {
             margin: 15px 0;
         }
         label {
             display: inline-block;
-            width: 120px;
+            width: 140px;
             font-weight: bold;
         }
-        input[type="text"] {
+        input[type="text"], input[type="number"] {
             padding: 8px;
             border: 1px solid #ddd;
             border-radius: 4px;
@@ -36,12 +42,13 @@
         button {
             background-color: #4CAF50;
             color: white;
-            padding: 10px 20px;
+            padding: 12px 24px;
             border: none;
             border-radius: 4px;
             cursor: pointer;
             font-size: 16px;
             margin: 5px;
+            font-weight: bold;
         }
         button:hover {
             background-color: #45a049;
@@ -50,22 +57,35 @@
             background-color: #ccc;
             cursor: not-allowed;
         }
+        button.secondary {
+            background-color: #2196F3;
+        }
+        button.secondary:hover {
+            background-color: #0b7dda;
+        }
+        button.danger {
+            background-color: #f44336;
+        }
+        button.danger:hover {
+            background-color: #da190b;
+        }
         #log {
             background-color: #000;
             color: #0f0;
             padding: 15px;
             margin-top: 20px;
             border-radius: 4px;
-            height: 350px;
+            height: 400px;
             overflow-y: auto;
             font-family: 'Courier New', monospace;
             font-size: 12px;
         }
         .status {
-            padding: 10px;
-            margin: 10px 0;
+            padding: 12px;
+            margin: 15px 0;
             border-radius: 4px;
             font-weight: bold;
+            font-size: 16px;
         }
         .connected {
             background-color: #d4edda;
@@ -75,18 +95,33 @@
             background-color: #f8d7da;
             color: #721c24;
         }
-        .server-info {
+        .connecting {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+        .info-box {
+            background-color: #d1ecf1;
+            border: 1px solid #bee5eb;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 15px;
+        }
+        .info-box h3 {
+            margin-top: 0;
+            color: #0c5460;
+        }
+        .warning-box {
             background-color: #fff3cd;
             border: 1px solid #ffc107;
             padding: 15px;
             border-radius: 4px;
             margin-bottom: 15px;
-        }
-        .server-info h3 {
-            margin-top: 0;
             color: #856404;
         }
-        .warning-box {
+        .warning-box h3 {
+            margin-top: 0;
+        }
+        .error-box {
             background-color: #f8d7da;
             border: 1px solid #f5c6cb;
             padding: 15px;
@@ -94,32 +129,76 @@
             margin-bottom: 15px;
             color: #721c24;
         }
-        .warning-box h3 {
+        .error-box h3 {
             margin-top: 0;
+        }
+        .success-box {
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 15px;
+            color: #155724;
+        }
+        .success-box h3 {
+            margin-top: 0;
+        }
+        .diagnostic-section {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 4px;
+        }
+        .diagnostic-section h3 {
+            margin-top: 0;
+        }
+        .stat {
+            display: inline-block;
+            margin: 5px 15px 5px 0;
+            padding: 5px 10px;
+            background-color: #e9ecef;
+            border-radius: 3px;
+            font-size: 14px;
         }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>🎮 SmartFoxServer 2X Test Client</h1>
+        <div class="subtitle">Diagnostic Edition with Network Testing</div>
         
-        <div class="server-info">
-            <h3>🌐 NAT Port Mapping</h3>
-            <p><strong>External:</strong> 162.120.186.91:57855</p>
-            <p><strong>Internal:</strong> Server port 9933 (Socket)</p>
-            <p style="font-size: 12px; margin-top: 10px;">
-                <strong>Note:</strong> Place <code>SFS2X_API_JS.js</code> in the same folder as this file
-            </p>
+        <div class="info-box">
+            <h3>✅ Configuration</h3>
+            <p><strong>Server:</strong> 162.120.186.91:60346 (NAT → 8080 WebSocket)</p>
+            <p><strong>API File Required:</strong> Rename your downloaded file to <code>SFS2X_API_JS.js</code></p>
         </div>
         
-        <div id="apiWarning" class="warning-box" style="display:none;">
-            <h3>⚠️ API File Missing</h3>
-            <p>Copy your downloaded API file to the same folder as this HTML and rename it to <strong>SFS2X_API_JS.js</strong></p>
-            <p>(e.g., rename <code>sfs2x-api-1.8.4.js</code> to <code>SFS2X_API_JS.js</code>)</p>
+        <div id="apiWarning" class="error-box" style="display:none;">
+            <h3>⚠️ API Not Loaded</h3>
+            <p>The SmartFoxServer API file is missing!</p>
+            <p>1. Download the API from SmartFoxServer website</p>
+            <p>2. Rename it to <code>SFS2X_API_JS.js</code></p>
+            <p>3. Place it in the same folder as this HTML file</p>
+        </div>
+        
+        <div id="diagnosticInfo" class="warning-box" style="display:none;">
+            <h3>🔍 Diagnostic Information</h3>
+            <div id="diagnosticContent"></div>
         </div>
         
         <div id="status" class="status disconnected">
             Status: Disconnected
+        </div>
+        
+        <div class="form-group">
+            <label>Server Host:</label>
+            <input type="text" id="serverHost" value="162.120.186.91">
+        </div>
+        
+        <div class="form-group">
+            <label>Server Port:</label>
+            <input type="number" id="serverPort" value="60346">
+            <small style="color: #666;">(WebSocket port - must be 60346)</small>
         </div>
         
         <div class="form-group">
@@ -137,10 +216,27 @@
             <input type="text" id="roomName" placeholder="Lobby" value="Lobby">
         </div>
         
+        <div class="form-group">
+            <label>Connection Timeout:</label>
+            <input type="number" id="timeout" value="10" min="5" max="60">
+            <small style="color: #666;">seconds</small>
+        </div>
+        
         <div>
             <button id="connectBtn" onclick="connect()">🔌 Connect to Server</button>
-            <button id="disconnectBtn" onclick="disconnect()" disabled>❌ Disconnect</button>
+            <button id="disconnectBtn" onclick="disconnect()" disabled class="danger">❌ Disconnect</button>
             <button onclick="clearLog()">🧹 Clear Log</button>
+            <button onclick="testNetwork()" class="secondary">🔍 Test Network</button>
+        </div>
+        
+        <div class="diagnostic-section">
+            <h3>📊 Connection Statistics</h3>
+            <div id="stats">
+                <span class="stat">Attempts: <strong id="attempts">0</strong></span>
+                <span class="stat">Successes: <strong id="successes">0</strong></span>
+                <span class="stat">Failures: <strong id="failures">0</strong></span>
+                <span class="stat">Last Attempt: <strong id="lastAttempt">Never</strong></span>
+            </div>
         </div>
         
         <div id="log"></div>
@@ -155,27 +251,37 @@
         var connectBtn = document.getElementById("connectBtn");
         var disconnectBtn = document.getElementById("disconnectBtn");
         var apiWarning = document.getElementById("apiWarning");
+        var diagnosticInfo = document.getElementById("diagnosticInfo");
+        var connectionTimeout;
         
-        // Server configuration - Using Socket port (9933) via NAT
-        const SERVER_HOST = "162.120.186.91";
-        const SERVER_PORT = 57855;  // External port (NAT forwards to internal 9933)
+        // Statistics
+        var stats = {
+            attempts: 0,
+            successes: 0,
+            failures: 0,
+            lastAttempt: null
+        };
         
         // Check if API loaded
         window.addEventListener('load', function() {
-            if (typeof SFS2X === 'undefined') {
-                log("✗ SFS2X API not found!");
-                apiWarning.style.display = 'block';
-                connectBtn.disabled = true;
-            } else {
-                log("✓ SFS2X API loaded successfully!");
-                connectBtn.disabled = false;
-            }
+            setTimeout(function() {
+                if (typeof SFS2X === 'undefined') {
+                    log("✗ SFS2X API not found!");
+                    apiWarning.style.display = 'block';
+                    connectBtn.disabled = true;
+                } else {
+                    log("✓ SFS2X API loaded successfully!");
+                    log("API Version: " + (SFS2X.API_VERSION || "Unknown"));
+                    connectBtn.disabled = false;
+                }
+            }, 500);
         });
         
-        function log(message) {
+        function log(message, level) {
             var logDiv = document.getElementById("log");
             var timestamp = new Date().toLocaleTimeString();
-            logDiv.innerHTML += `[${timestamp}] ${message}<br>`;
+            var color = level === 'error' ? '#ff6b6b' : level === 'warn' ? '#ffd93d' : level === 'success' ? '#6bcf7f' : '#0f0';
+            logDiv.innerHTML += `<span style="color: ${color}">[${timestamp}] ${message}</span><br>`;
             logDiv.scrollTop = logDiv.scrollHeight;
         }
         
@@ -183,50 +289,160 @@
             document.getElementById("log").innerHTML = "";
             log("═══════════════════════════════════");
             log("SmartFoxServer 2X Test Client");
-            log("Server: " + SERVER_HOST + ":" + SERVER_PORT);
-            log("NAT Mapping: 57855 → 9933 (Socket)");
+            log("Diagnostic Edition");
             log("═══════════════════════════════════");
             log("Ready to connect.");
         }
         
-        function updateStatus(connected) {
-            if (connected) {
+        function updateStatus(state, message) {
+            if (state === 'connected') {
                 statusDiv.className = "status connected";
                 statusDiv.innerHTML = "Status: Connected ✓";
                 connectBtn.disabled = true;
                 disconnectBtn.disabled = false;
+            } else if (state === 'connecting') {
+                statusDiv.className = "status connecting";
+                statusDiv.innerHTML = "Status: Connecting" + (message ? " - " + message : "...");
+                connectBtn.disabled = true;
+                disconnectBtn.disabled = false;
             } else {
                 statusDiv.className = "status disconnected";
-                statusDiv.innerHTML = "Status: Disconnected";
+                statusDiv.innerHTML = "Status: Disconnected" + (message ? " - " + message : "");
                 connectBtn.disabled = false;
                 disconnectBtn.disabled = true;
             }
         }
         
+        function updateStats() {
+            document.getElementById("attempts").textContent = stats.attempts;
+            document.getElementById("successes").textContent = stats.successes;
+            document.getElementById("failures").textContent = stats.failures;
+            document.getElementById("lastAttempt").textContent = stats.lastAttempt || "Never";
+        }
+        
+        function showDiagnostic(message) {
+            var content = document.getElementById("diagnosticContent");
+            content.innerHTML = message;
+            diagnosticInfo.style.display = 'block';
+        }
+        
+        function hideDiagnostic() {
+            diagnosticInfo.style.display = 'none';
+        }
+        
+        function testNetwork() {
+            log("═══════════════════════════════════");
+            log("🔍 Running Network Diagnostics...", "warn");
+            log("═══════════════════════════════════");
+            
+            var host = document.getElementById("serverHost").value;
+            var port = document.getElementById("serverPort").value;
+            
+            // Test 1: Check if we can reach the server
+            log("Test 1: Attempting HTTP request to server...");
+            
+            var testUrl = "http://" + host + ":" + port + "/crossdomain.xml";
+            var img = new Image();
+            var startTime = Date.now();
+            
+            img.onerror = function() {
+                var elapsed = Date.now() - startTime;
+                log("⚠️ HTTP test inconclusive (" + elapsed + "ms)", "warn");
+                log("This is normal - the server may not serve this file.");
+            };
+            
+            img.onload = function() {
+                var elapsed = Date.now() - startTime;
+                log("✓ HTTP response received (" + elapsed + "ms)", "success");
+            };
+            
+            img.src = testUrl + "?t=" + Date.now();
+            
+            // Test 2: Check browser capabilities
+            setTimeout(function() {
+                log("");
+                log("Test 2: Browser Capabilities");
+                log("  WebSocket support: " + (window.WebSocket ? "✓ Yes" : "✗ No"), window.WebSocket ? "success" : "error");
+                log("  Fetch API: " + (window.fetch ? "✓ Yes" : "✗ No"));
+                log("  Local Storage: " + (window.localStorage ? "✓ Yes" : "✗ No"));
+                log("  User Agent: " + navigator.userAgent);
+                log("");
+                log("Test 3: Configuration Check");
+                log("  Server: " + host + ":" + port);
+                log("  WebSocket URL: ws://" + host + ":" + port);
+                log("  Expected internal: 0.0.0.0:8080");
+                log("  NAT forwarding: " + port + " → 8080");
+                log("");
+                log("✓ Diagnostics complete!");
+                log("═══════════════════════════════════");
+            }, 1000);
+        }
+        
         function connect() {
-            // Check if SFS2X API is loaded
             if (typeof SFS2X === 'undefined') {
-                log("✗ SmartFoxServer API not loaded!");
-                log("Please add SFS2X_API_JS.js to the same folder.");
+                log("✗ SmartFoxServer API not loaded!", "error");
                 apiWarning.style.display = 'block';
                 return;
             }
             
+            hideDiagnostic();
+            stats.attempts++;
+            stats.lastAttempt = new Date().toLocaleTimeString();
+            updateStats();
+            
             log("═══════════════════════════════════");
             log("🚀 Initializing connection...");
             
+            var host = document.getElementById("serverHost").value;
+            var port = parseInt(document.getElementById("serverPort").value);
             var zone = document.getElementById("zoneName").value || "MyGameZone";
+            var timeout = parseInt(document.getElementById("timeout").value) * 1000;
             
             log("Configuration:");
-            log("  Host: " + SERVER_HOST);
-            log("  Port: " + SERVER_PORT + " (external)");
-            log("  Internal Port: 9933 (via NAT)");
+            log("  Host: " + host);
+            log("  Port: " + port + " (external)");
+            log("  Internal Port: 8080 (via NAT)");
             log("  Zone: " + zone);
-            log("  Protocol: Socket (not WebSocket)");
+            log("  Timeout: " + (timeout/1000) + " seconds");
+            log("  Protocol: WebSocket");
             log("═══════════════════════════════════");
             
+            updateStatus('connecting', 'Initializing...');
+            
             // Create SmartFox instance
-            sfs = new SFS2X.SmartFox();
+            sfs = new SFS2X.SmartFox({debug: false});
+            
+            // Set connection timeout
+            connectionTimeout = setTimeout(function() {
+                if (sfs && !sfs.isConnected) {
+                    log("");
+                    log("✗ Connection timeout after " + (timeout/1000) + " seconds!", "error");
+                    log("");
+                    log("Common Issues:");
+                    log("  1. Windows Firewall blocking port 8080");
+                    log("  2. SmartFoxServer not running");
+                    log("  3. WebSocket not enabled in SFS config");
+                    log("  4. NAT port forwarding incorrect");
+                    log("  5. 'Allowed client origins' blocking connection");
+                    log("");
+                    showDiagnostic(
+                        "<strong>Connection Timeout!</strong><br><br>" +
+                        "The client couldn't connect within " + (timeout/1000) + " seconds.<br><br>" +
+                        "<strong>Next Steps:</strong><br>" +
+                        "1. Verify SFS service is running: <code>sc query sfs2x-service</code><br>" +
+                        "2. Check Windows Firewall allows port 8080<br>" +
+                        "3. Check SFS logs: <code>C:\\Users\\v2cloud\\SmartFoxServer_2X\\SFS2X\\logs\\</code><br>" +
+                        "4. In Admin Tool → Web Server → Add '*' to 'Allowed client origins'<br>" +
+                        "5. Restart SFS service after any config changes"
+                    );
+                    updateStatus('disconnected', 'Timeout');
+                    stats.failures++;
+                    updateStats();
+                    if (sfs) {
+                        sfs.disconnect();
+                    }
+                }
+            }, timeout);
             
             // Add event listeners
             sfs.addEventListener(SFS2X.SFSEvent.CONNECTION, onConnection, this);
@@ -238,25 +454,33 @@
             sfs.addEventListener(SFS2X.SFSEvent.USER_ENTER_ROOM, onUserEnterRoom, this);
             sfs.addEventListener(SFS2X.SFSEvent.USER_EXIT_ROOM, onUserExitRoom, this);
             
-            // Connect to SmartFoxServer using socket port
+            // Connect to SmartFoxServer
             var config = {
-                host: SERVER_HOST,
-                port: SERVER_PORT,
+                host: host,
+                port: port,
                 useSSL: false,
                 zone: zone,
-                debug: true  // Enable debug to see connection details
+                debug: false
             };
             
-            log("Connecting to " + SERVER_HOST + ":" + SERVER_PORT + "...");
+            updateStatus('connecting', 'Connecting to ' + host + ':' + port);
+            log("Connecting to " + host + ":" + port + "...");
+            
             try {
                 sfs.connect(config);
             } catch (error) {
-                log("✗ Connection error: " + error.message);
-                updateStatus(false);
+                clearTimeout(connectionTimeout);
+                log("✗ Connection error: " + error.message, "error");
+                updateStatus('disconnected', 'Error');
+                stats.failures++;
+                updateStats();
             }
         }
         
         function disconnect() {
+            if (connectionTimeout) {
+                clearTimeout(connectionTimeout);
+            }
             if (sfs && sfs.isConnected) {
                 log("Disconnecting from server...");
                 sfs.disconnect();
@@ -264,55 +488,68 @@
         }
         
         function onConnection(event) {
+            clearTimeout(connectionTimeout);
+            
             if (event.success) {
-                log("✓ Connected to server successfully!");
-                log("Logging in...");
+                log("✓ TCP connection established!", "success");
+                log("WebSocket handshake successful!");
+                updateStatus('connecting', 'Logging in...');
                 
                 var username = document.getElementById("username").value || "Player" + Math.floor(Math.random() * 1000);
+                log("Attempting login as: " + username);
                 sfs.send(new SFS2X.LoginRequest(username));
             } else {
-                log("✗ Connection failed!");
-                log("Error: " + (event.errorMessage || "Unknown error"));
+                log("✗ Connection failed!", "error");
+                log("Error: " + (event.errorMessage || "Unknown error"), "error");
                 log("");
-                log("Troubleshooting:");
-                log("  • Verify SmartFoxServer is running");
-                log("  • Check NAT port forwarding: 57855 → 9933");
-                log("  • Verify port 9933 is open in Windows Firewall");
-                log("  • Check Zone '" + document.getElementById("zoneName").value + "' exists");
-                updateStatus(false);
+                log("Troubleshooting Steps:");
+                log("  1. Check if SFS service is running");
+                log("  2. Verify port 8080 is open in Windows Firewall");
+                log("  3. Test NAT forwarding: 60346 → 8080");
+                log("  4. Check SFS logs for errors");
+                log("  5. Verify WebSocket is enabled in Server Configurator");
+                updateStatus('disconnected', event.errorMessage);
+                stats.failures++;
+                updateStats();
             }
         }
         
         function onConnectionLost(event) {
-            log("✗ Connection lost!");
-            log("Reason: " + event.reason);
-            updateStatus(false);
+            clearTimeout(connectionTimeout);
+            log("✗ Connection lost!", "error");
+            log("Reason: " + event.reason, "error");
+            updateStatus('disconnected', 'Connection lost');
+            stats.failures++;
+            updateStats();
         }
         
         function onLogin(event) {
-            log("✓ Login successful!");
+            log("✓ Login successful!", "success");
             log("  User ID: " + event.user.id);
             log("  Username: " + event.user.name);
             log("  Zone: " + event.zone);
-            updateStatus(true);
+            stats.successes++;
+            updateStats();
+            updateStatus('connected');
             
-            // Try to join the specified room
             var roomName = document.getElementById("roomName").value || "Lobby";
             log("Joining room: '" + roomName + "'...");
             sfs.send(new SFS2X.JoinRoomRequest(roomName));
         }
         
         function onLoginError(event) {
-            log("✗ Login error!");
-            log("  Message: " + event.errorMessage);
-            log("  Code: " + event.errorCode);
+            log("✗ Login error!", "error");
+            log("  Message: " + event.errorMessage, "error");
+            log("  Code: " + event.errorCode, "error");
             log("");
             log("Check that Zone '" + document.getElementById("zoneName").value + "' exists in Admin Tool.");
-            updateStatus(false);
+            updateStatus('disconnected', 'Login failed');
+            stats.failures++;
+            updateStats();
         }
         
         function onRoomJoin(event) {
-            log("✓ Successfully joined room: " + event.room.name);
+            log("✓ Successfully joined room: " + event.room.name, "success");
             log("  Room ID: " + event.room.id);
             log("  Capacity: " + event.room.getUserList().length + "/" + event.room.getCapacity());
             log("");
@@ -321,14 +558,14 @@
                 log("  • " + user.name + (user.isItMe ? " ⭐ (YOU)" : ""));
             });
             log("═══════════════════════════════════");
-            log("🎉 SUCCESS! You're connected!");
+            log("🎉 SUCCESS! FULLY CONNECTED!", "success");
             log("═══════════════════════════════════");
         }
         
         function onRoomJoinError(event) {
-            log("✗ Failed to join room!");
-            log("  Error: " + event.errorMessage);
-            log("  Code: " + event.errorCode);
+            log("✗ Failed to join room!", "error");
+            log("  Error: " + event.errorMessage, "error");
+            log("  Code: " + event.errorCode, "error");
             log("");
             log("Make sure room '" + document.getElementById("roomName").value + "' exists.");
             log("Create it in: Admin Tool → Zone Monitor → Create Room");
@@ -337,20 +574,21 @@
         function onUserEnterRoom(event) {
             var user = event.user;
             if (!user.isItMe) {
-                log("→ " + user.name + " joined the room");
+                log("→ " + user.name + " joined the room", "success");
             }
         }
         
         function onUserExitRoom(event) {
             var user = event.user;
-            log("← " + user.name + " left the room");
+            log("← " + user.name + " left the room", "warn");
         }
         
         // Initial log
         log("═══════════════════════════════════");
         log("SmartFoxServer 2X Test Client");
-        log("Server: " + SERVER_HOST + ":" + SERVER_PORT);
-        log("NAT Mapping: 57855 → 9933 (Socket)");
+        log("Diagnostic Edition v1.0");
+        log("Server: 162.120.186.91:60346");
+        log("NAT Mapping: 60346 → 8080 (WebSocket)");
         log("═══════════════════════════════════");
         log("Checking for API file...");
     </script>

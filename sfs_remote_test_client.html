@@ -105,8 +105,8 @@
         
         <div class="server-info">
             <h3>🌐 NAT Port Mapping</h3>
-            <p><strong>External:</strong> 162.120.186.91:60346</p>
-            <p><strong>Internal:</strong> Server port 8080</p>
+            <p><strong>External:</strong> 162.120.186.91:57855</p>
+            <p><strong>Internal:</strong> Server port 9933 (Socket)</p>
             <p style="font-size: 12px; margin-top: 10px;">
                 <strong>Note:</strong> Place <code>SFS2X_API_JS.js</code> in the same folder as this file
             </p>
@@ -114,8 +114,8 @@
         
         <div id="apiWarning" class="warning-box" style="display:none;">
             <h3>⚠️ API File Missing</h3>
-            <p>Copy <strong>SFS2X_API_JS.js</strong> to the same folder as this HTML file.</p>
-            <p>Location on server: <code>SmartFoxServer_2X/SFS2X/www/js/SFS2X_API_JS.js</code></p>
+            <p>Copy your downloaded API file to the same folder as this HTML and rename it to <strong>SFS2X_API_JS.js</strong></p>
+            <p>(e.g., rename <code>sfs2x-api-1.8.4.js</code> to <code>SFS2X_API_JS.js</code>)</p>
         </div>
         
         <div id="status" class="status disconnected">
@@ -156,9 +156,9 @@
         var disconnectBtn = document.getElementById("disconnectBtn");
         var apiWarning = document.getElementById("apiWarning");
         
-        // Server configuration - Using NAT forwarded port
+        // Server configuration - Using Socket port (9933) via NAT
         const SERVER_HOST = "162.120.186.91";
-        const SERVER_PORT = 60346;  // External port (NAT forwards to internal 8080)
+        const SERVER_PORT = 57855;  // External port (NAT forwards to internal 9933)
         
         // Check if API loaded
         window.addEventListener('load', function() {
@@ -184,7 +184,7 @@
             log("═══════════════════════════════════");
             log("SmartFoxServer 2X Test Client");
             log("Server: " + SERVER_HOST + ":" + SERVER_PORT);
-            log("NAT Mapping: 60346 → 8080");
+            log("NAT Mapping: 57855 → 9933 (Socket)");
             log("═══════════════════════════════════");
             log("Ready to connect.");
         }
@@ -220,8 +220,9 @@
             log("Configuration:");
             log("  Host: " + SERVER_HOST);
             log("  Port: " + SERVER_PORT + " (external)");
-            log("  Internal Port: 8080 (via NAT)");
+            log("  Internal Port: 9933 (via NAT)");
             log("  Zone: " + zone);
+            log("  Protocol: Socket (not WebSocket)");
             log("═══════════════════════════════════");
             
             // Create SmartFox instance
@@ -237,13 +238,13 @@
             sfs.addEventListener(SFS2X.SFSEvent.USER_ENTER_ROOM, onUserEnterRoom, this);
             sfs.addEventListener(SFS2X.SFSEvent.USER_EXIT_ROOM, onUserExitRoom, this);
             
-            // Connect to SmartFoxServer
+            // Connect to SmartFoxServer using socket port
             var config = {
                 host: SERVER_HOST,
                 port: SERVER_PORT,
                 useSSL: false,
                 zone: zone,
-                debug: false
+                debug: true  // Enable debug to see connection details
             };
             
             log("Connecting to " + SERVER_HOST + ":" + SERVER_PORT + "...");
@@ -275,9 +276,9 @@
                 log("");
                 log("Troubleshooting:");
                 log("  • Verify SmartFoxServer is running");
-                log("  • Check NAT port forwarding: 60346 → 8080");
-                log("  • Verify Zone '" + document.getElementById("zoneName").value + "' exists");
-                log("  • Test admin tool: http://162.120.186.91:60346/admin");
+                log("  • Check NAT port forwarding: 57855 → 9933");
+                log("  • Verify port 9933 is open in Windows Firewall");
+                log("  • Check Zone '" + document.getElementById("zoneName").value + "' exists");
                 updateStatus(false);
             }
         }
@@ -349,7 +350,7 @@
         log("═══════════════════════════════════");
         log("SmartFoxServer 2X Test Client");
         log("Server: " + SERVER_HOST + ":" + SERVER_PORT);
-        log("NAT Mapping: 60346 → 8080");
+        log("NAT Mapping: 57855 → 9933 (Socket)");
         log("═══════════════════════════════════");
         log("Checking for API file...");
     </script>

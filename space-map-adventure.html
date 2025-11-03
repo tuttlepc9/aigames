@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cosmic Adventure - Point & Click</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            background: #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            font-family: 'Courier New', monospace;
+            overflow: hidden;
+        }
+        
+        #gameContainer {
+            position: relative;
+            max-width: 100%;
+            max-height: 100vh;
+        }
+        
+        #mainImage {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+        
+        .hotspot {
+            position: absolute;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: 2px solid transparent;
+        }
+        
+        .hotspot:hover {
+            border: 2px solid rgba(255, 255, 255, 0.8);
+            box-shadow: 0 0 20px rgba(255, 255, 255, 0.5);
+            transform: scale(1.02);
+        }
+        
+        .hotspot-label {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.8);
+            color: #00ff00;
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-size: 12px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.3s;
+            white-space: nowrap;
+            border: 1px solid #00ff00;
+        }
+        
+        .hotspot:hover .hotspot-label {
+            opacity: 1;
+        }
+        
+        #locationScreen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #000;
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        
+        #locationScreen.active {
+            display: flex;
+        }
+        
+        #locationImage {
+            max-width: 90%;
+            max-height: 80vh;
+            border: 3px solid #00ff00;
+        }
+        
+        #backButton {
+            margin-top: 20px;
+            padding: 15px 30px;
+            background: #00ff00;
+            color: #000;
+            border: none;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            font-family: 'Courier New', monospace;
+            transition: all 0.3s;
+        }
+        
+        #backButton:hover {
+            background: #00ffff;
+            transform: scale(1.1);
+        }
+        
+        #locationTitle {
+            color: #00ff00;
+            font-size: 32px;
+            margin-bottom: 20px;
+            text-shadow: 0 0 10px #00ff00;
+        }
+        
+        #instructions {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.8);
+            color: #00ff00;
+            padding: 10px 20px;
+            border: 2px solid #00ff00;
+            border-radius: 10px;
+            text-align: center;
+            z-index: 100;
+        }
+        
+        .placeholder-message {
+            color: #ffff00;
+            font-size: 24px;
+            margin-top: 20px;
+            text-align: center;
+            max-width: 80%;
+        }
+    </style>
+</head>
+<body>
+    <div id="instructions">
+        🚀 Click on any region to explore! Hover to see location names.
+    </div>
+
+    <div id="gameContainer">
+        <img id="mainImage" src="d9fe6f01-ef4f-4735-8adf-e145e5819870_neuroflash-think_sierra_games_-_leisure_suit_larry_-_but_wer_1762188291.png" alt="Cosmic Map">
+        
+        <!-- Nebula Noodle Arm (upper left) -->
+        <div class="hotspot" data-location="nebula" style="left: 5%; top: 5%; width: 25%; height: 35%;">
+            <div class="hotspot-label" style="top: 50%; left: 50%; transform: translate(-50%, -50%);">
+                NEBULA NOODLE ARM
+            </div>
+        </div>
+        
+        <!-- Quantum Quasar Quadrant (upper right) -->
+        <div class="hotspot" data-location="quantum" style="left: 70%; top: 5%; width: 25%; height: 35%;">
+            <div class="hotspot-label" style="top: 50%; left: 50%; transform: translate(-50%, -50%);">
+                QUANTUM QUASAR QUADRANT
+            </div>
+        </div>
+        
+        <!-- Stardust Saloon (center) -->
+        <div class="hotspot" data-location="stardust" style="left: 35%; top: 25%; width: 30%; height: 35%;">
+            <div class="hotspot-label" style="top: 50%; left: 50%; transform: translate(-50%, -50%);">
+                STARDUST SALOON
+            </div>
+        </div>
+        
+        <!-- Fungal Forest Frontier (lower left) -->
+        <div class="hotspot" data-location="fungal" style="left: 5%; top: 55%; width: 30%; height: 40%;">
+            <div class="hotspot-label" style="top: 50%; left: 50%; transform: translate(-50%, -50%);">
+                FUNGAL FOREST FRONTIER
+            </div>
+        </div>
+        
+        <!-- Rust Belt Expanse (lower right) -->
+        <div class="hotspot" data-location="rust" style="left: 65%; top: 55%; width: 30%; height: 40%;">
+            <div class="hotspot-label" style="top: 50%; left: 50%; transform: translate(-50%, -50%);">
+                RUST BELT EXPANSE
+            </div>
+        </div>
+    </div>
+
+    <div id="locationScreen">
+        <h1 id="locationTitle"></h1>
+        <div id="locationContent">
+            <!-- Location image will be loaded here -->
+        </div>
+        <p class="placeholder-message" id="placeholderMsg"></p>
+        <button id="backButton">← RETURN TO MAP</button>
+    </div>
+
+    <script>
+        const locations = {
+            nebula: {
+                name: 'NEBULA NOODLE ARM',
+                image: 'nebula-noodle-arm.png',
+                description: 'A swirling nebula filled with alien creatures and cosmic wonders.'
+            },
+            quantum: {
+                name: 'QUANTUM QUASAR QUADRANT',
+                image: 'quantum-quasar-quadrant.png',
+                description: 'A mysterious region with ancient monuments and geometric anomalies.'
+            },
+            stardust: {
+                name: 'STARDUST SALOON',
+                image: 'stardust-saloon.png',
+                description: 'The bustling central hub of the galaxy, filled with shops and entertainment.'
+            },
+            fungal: {
+                name: 'FUNGAL FOREST FRONTIER',
+                image: 'fungal-forest-frontier.png',
+                description: 'A bioluminescent mushroom forest teeming with strange life forms.'
+            },
+            rust: {
+                name: 'RUST BELT EXPANSE',
+                image: 'rust-belt-expanse.png',
+                description: 'An industrial wasteland of abandoned machinery and mining operations.'
+            }
+        };
+
+        // Get elements
+        const hotspots = document.querySelectorAll('.hotspot');
+        const locationScreen = document.getElementById('locationScreen');
+        const locationTitle = document.getElementById('locationTitle');
+        const locationContent = document.getElementById('locationContent');
+        const placeholderMsg = document.getElementById('placeholderMsg');
+        const backButton = document.getElementById('backButton');
+
+        // Add click handlers to hotspots
+        hotspots.forEach(hotspot => {
+            hotspot.addEventListener('click', () => {
+                const locationKey = hotspot.dataset.location;
+                const location = locations[locationKey];
+                showLocation(location);
+            });
+        });
+
+        function showLocation(location) {
+            locationTitle.textContent = location.name;
+            locationScreen.classList.add('active');
+            
+            // Try to load the image, show placeholder if it doesn't exist
+            const img = new Image();
+            img.id = 'locationImage';
+            img.src = location.image;
+            
+            img.onload = () => {
+                locationContent.innerHTML = '';
+                locationContent.appendChild(img);
+                placeholderMsg.style.display = 'none';
+            };
+            
+            img.onerror = () => {
+                locationContent.innerHTML = '';
+                placeholderMsg.textContent = `📍 ${location.description}\n\n⚠️ Image "${location.image}" needed for this location.\nCreate and add this image to complete the game!`;
+                placeholderMsg.style.display = 'block';
+            };
+        }
+
+        backButton.addEventListener('click', () => {
+            locationScreen.classList.remove('active');
+            locationContent.innerHTML = '';
+        });
+
+        // Optional: Keyboard support
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && locationScreen.classList.contains('active')) {
+                locationScreen.classList.remove('active');
+                locationContent.innerHTML = '';
+            }
+        });
+    </script>
+</body>
+</html>

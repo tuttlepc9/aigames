@@ -1,0 +1,2413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Space Quest Adventure</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            background: #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            font-family: 'Courier New', monospace;
+        }
+        
+        #gameContainer {
+            background: #000;
+            border: 4px solid #00ff00;
+            box-shadow: 0 0 20px rgba(0, 255, 0, 0.3);
+        }
+        
+        canvas {
+            display: block;
+            cursor: crosshair;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <canvas id="gameCanvas" width="640" height="400"></canvas>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Game state
+        const game = {
+            currentRoom: 'shipInterior',
+            player: {
+                x: 100,
+                y: 280,
+                width: 20,
+                height: 40,
+                targetX: null,
+                targetY: null,
+                speed: 2,
+                moving: false
+            },
+            inventory: [],
+            credits: 100,
+            description: 'Welcome Captain! Explore the galaxy and earn credits!',
+            hoveredObject: null,
+            dialogMode: false,
+            currentDialog: null,
+            flags: {
+                cratesLooted: false,
+                robotDefeated: false,
+                underwaterTreasure: false,
+                monumentActivated: false,
+                snowmanSecret: false,
+                ruinsExplored: false,
+                desertPlant: false
+            },
+            achievements: [],
+            miningScore: 0,
+            gamblingWins: 0
+        };
+        
+        function drawPlayer() {
+            const p = game.player;
+            ctx.fillStyle = '#ff6600';
+            ctx.fillRect(p.x, p.y + 10, p.width, p.height - 10);
+            ctx.fillStyle = '#4a9ade';
+            ctx.beginPath();
+            ctx.arc(p.x + p.width/2, p.y + 8, 8, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        
+        function updatePlayer() {
+            const p = game.player;
+            if (p.moving && p.targetX !== null && p.targetY !== null) {
+                const dx = p.targetX - p.x;
+                const dy = p.targetY - p.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                
+                if (distance < p.speed) {
+                    p.x = p.targetX;
+                    p.y = p.targetY;
+                    p.moving = false;
+                    p.targetX = null;
+                    p.targetY = null;
+                } else {
+                    p.x += (dx / distance) * p.speed;
+                    p.y += (dy / distance) * p.speed;
+                }
+            }
+        }
+        
+        function changeRoom(roomName) {
+            game.currentRoom = roomName;
+            game.player.x = 100;
+            game.player.y = 280;
+            game.player.moving = false;
+            updateDescription(`Entering: ${rooms[roomName].name}`);
+        }
+        
+        function updateDescription(text) {
+            game.description = text;
+        }
+        
+        function hasItem(item) {
+            return game.inventory.includes(item);
+        }
+        
+        function addItem(item) {
+            if (!hasItem(item)) {
+                game.inventory.push(item);
+            }
+        }
+        
+        function removeItem(item) {
+            const index = game.inventory.indexOf(item);
+            if (index > -1) game.inventory.splice(index, 1);
+        }
+        
+        function startDialog(dialog) {
+            game.dialogMode = true;
+            game.currentDialog = dialog;
+        }
+        
+        function endDialog() {
+            game.dialogMode = false;
+            game.currentDialog = null;
+        }
+        
+        function drawNPC(x, y, color) {
+            ctx.fillStyle = color;
+            ctx.fillRect(x, y + 10, 20, 30);
+            ctx.beginPath();
+            ctx.arc(x + 10, y + 8, 8, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        
+        function drawDialog() {
+            if (!game.dialogMode || !game.currentDialog) return;
+            
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.9)';
+            ctx.fillRect(50, 50, 540, 200);
+            ctx.strokeStyle = '#00ff00';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(50, 50, 540, 200);
+            
+            ctx.fillStyle = '#00ffff';
+            ctx.font = 'bold 16px monospace';
+            ctx.fillText(game.currentDialog.npc, 60, 75);
+            
+            ctx.fillStyle = '#00ff00';
+            ctx.font = '14px monospace';
+            const words = game.currentDialog.text.split(' ');
+            let line = '';
+            let y = 100;
+            
+            for (let word of words) {
+                const testLine = line + word + ' ';
+                if (ctx.measureText(testLine).width > 500) {
+                    ctx.fillText(line, 60, y);
+                    line = word + ' ';
+                    y += 20;
+                } else {
+                    line = testLine;
+                }
+            }
+            ctx.fillText(line, 60, y);
+            
+            y += 30;
+            game.currentDialog.options.forEach((option, i) => {
+                ctx.fillStyle = '#ffff00';
+                ctx.fillText(`${i + 1}. ${option.text}`, 60, y);
+                y += 20;
+            });
+        }
+        
+        // Room definitions
+        const rooms = {
+            shipInterior: {
+                name: 'Ship Interior - Command Deck',
+                background: function(ctx) {
+                    // Modern dark background with gradient
+                    const bgGradient = ctx.createLinearGradient(0, 0, 0, 300);
+                    bgGradient.addColorStop(0, '#0a0e27');
+                    bgGradient.addColorStop(1, '#1a1e3a');
+                    ctx.fillStyle = bgGradient;
+                    ctx.fillRect(0, 0, 640, 300);
+                    
+                    // Sleek floor
+                    const floorGradient = ctx.createLinearGradient(0, 300, 0, 400);
+                    floorGradient.addColorStop(0, '#2a2e4a');
+                    floorGradient.addColorStop(1, '#1a1e3a');
+                    ctx.fillStyle = floorGradient;
+                    ctx.fillRect(0, 300, 640, 100);
+                    
+                    // Ceiling lights strip
+                    const time = Date.now() / 1000;
+                    const pulse = 0.5 + Math.sin(time) * 0.2;
+                    for(let i = 0; i < 640; i += 60) {
+                        ctx.fillStyle = `rgba(0, 200, 255, ${pulse})`;
+                        ctx.fillRect(i, 0, 40, 8);
+                    }
+                    
+                    // Wall panels
+                    ctx.strokeStyle = '#3a4e6a';
+                    ctx.lineWidth = 2;
+                    for(let i = 0; i < 5; i++) {
+                        ctx.strokeRect(20 + i * 125, 50, 100, 200);
+                    }
+                    
+                    // Viewport window showing space
+                    ctx.fillStyle = '#000000';
+                    ctx.fillRect(220, 30, 200, 140);
+                    
+                    // Stars in viewport
+                    ctx.fillStyle = '#ffffff';
+                    for(let i = 0; i < 30; i++) {
+                        const x = 220 + Math.random() * 200;
+                        const y = 30 + Math.random() * 140;
+                        const size = Math.random() * 2;
+                        ctx.fillRect(x, y, size, size);
+                    }
+                    
+                    // Distant planet in viewport
+                    ctx.fillStyle = '#4a7a9a';
+                    ctx.beginPath();
+                    ctx.arc(380, 100, 25, 0, Math.PI * 2);
+                    ctx.fill();
+                    
+                    // Window frame
+                    ctx.strokeStyle = '#5a6e8a';
+                    ctx.lineWidth = 4;
+                    ctx.strokeRect(220, 30, 200, 140);
+                    
+                    // Left door - Cockpit (Navigation)
+                    ctx.fillStyle = '#2a3e5a';
+                    ctx.fillRect(50, 190, 80, 110);
+                    ctx.strokeStyle = '#4a8eff';
+                    ctx.lineWidth = 3;
+                    ctx.strokeRect(50, 190, 80, 110);
+                    
+                    // Door panel light
+                    ctx.fillStyle = '#4a8eff';
+                    ctx.fillRect(55, 195, 10, 10);
+                    
+                    // Label
+                    ctx.fillStyle = '#00d4ff';
+                    ctx.shadowBlur = 8;
+                    ctx.shadowColor = '#00d4ff';
+                    ctx.font = 'bold 11px monospace';
+                    ctx.fillText('COCKPIT', 58, 180);
+                    ctx.fillStyle = '#88ccff';
+                    ctx.font = '9px monospace';
+                    ctx.fillText('Navigation', 60, 315);
+                    ctx.shadowBlur = 0;
+                    
+                    // Middle door - Exploration Bay
+                    ctx.fillStyle = '#2a5a3e';
+                    ctx.fillRect(230, 190, 80, 110);
+                    ctx.strokeStyle = '#4aff8e';
+                    ctx.lineWidth = 3;
+                    ctx.strokeRect(230, 190, 80, 110);
+                    
+                    ctx.fillStyle = '#4aff8e';
+                    ctx.fillRect(235, 195, 10, 10);
+                    
+                    ctx.fillStyle = '#00ff88';
+                    ctx.shadowBlur = 8;
+                    ctx.shadowColor = '#00ff88';
+                    ctx.font = 'bold 11px monospace';
+                    ctx.fillText('EXPLORE', 235, 180);
+                    ctx.fillStyle = '#88ffcc';
+                    ctx.font = '9px monospace';
+                    ctx.fillText('Planets', 248, 315);
+                    ctx.shadowBlur = 0;
+                    
+                    // Right door - Arcade
+                    ctx.fillStyle = '#5a2e5a';
+                    ctx.fillRect(510, 190, 80, 110);
+                    ctx.strokeStyle = '#ff4aff';
+                    ctx.lineWidth = 3;
+                    ctx.strokeRect(510, 190, 80, 110);
+                    
+                    ctx.fillStyle = '#ff4aff';
+                    ctx.fillRect(515, 195, 10, 10);
+                    
+                    ctx.fillStyle = '#ff00ff';
+                    ctx.shadowBlur = 8;
+                    ctx.shadowColor = '#ff00ff';
+                    ctx.font = 'bold 11px monospace';
+                    ctx.fillText('ARCADE', 520, 180);
+                    ctx.fillStyle = '#ffaaff';
+                    ctx.font = '9px monospace';
+                    ctx.fillText('31 Games', 525, 315);
+                    ctx.shadowBlur = 0;
+                    
+                    // Holographic computer terminal
+                    ctx.fillStyle = '#1a2a4a';
+                    ctx.fillRect(350, 220, 100, 80);
+                    
+                    // Holographic screen effect
+                    const holo = ctx.createLinearGradient(360, 230, 360, 280);
+                    holo.addColorStop(0, 'rgba(0, 255, 255, 0.8)');
+                    holo.addColorStop(0.5, 'rgba(0, 200, 255, 0.6)');
+                    holo.addColorStop(1, 'rgba(0, 150, 255, 0.8)');
+                    ctx.fillStyle = holo;
+                    ctx.fillRect(360, 230, 80, 50);
+                    
+                    // Terminal text
+                    ctx.fillStyle = '#00ffff';
+                    ctx.font = '8px monospace';
+                    ctx.fillText('SHIP STATUS', 365, 240);
+                    ctx.fillText('ONLINE', 375, 250);
+                    ctx.fillText('[TERMINAL]', 365, 260);
+                    
+                    // Console buttons
+                    const btnColors = ['#ff0000', '#00ff00', '#0000ff'];
+                    for(let i = 0; i < 3; i++) {
+                        ctx.fillStyle = btnColors[i];
+                        ctx.beginPath();
+                        ctx.arc(370 + i * 20, 290, 5, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+                    
+                    // Ambient floor lighting
+                    ctx.fillStyle = 'rgba(0, 150, 255, 0.1)';
+                    ctx.fillRect(0, 300, 640, 20);
+                },
+                hotspots: [
+                    {
+                        x: 50, y: 190, width: 80, height: 110,
+                        name: 'Cockpit',
+                        description: 'Navigation & Mission Control',
+                        action: () => changeRoom('cockpit')
+                    },
+                    {
+                        x: 230, y: 190, width: 80, height: 110,
+                        name: 'Exploration Bay',
+                        description: 'Planet Exploration',
+                        action: () => changeRoom('explorationBay')
+                    },
+                    {
+                        x: 510, y: 190, width: 80, height: 110,
+                        name: 'Arcade',
+                        description: 'Game Market - 31 Games Available',
+                        action: () => changeRoom('gameMarket')
+                    },
+                    {
+                        x: 350, y: 220, width: 100, height: 80,
+                        name: 'Ship Computer',
+                        description: 'Status Terminal',
+                        action: () => {
+                            startDialog({
+                                npc: 'Ship Computer',
+                                text: `╔════════════════════╗\n  SHIP STATUS: ONLINE\n╚════════════════════╝\n\nCredits: ${game.credits}\nInventory: ${game.inventory.length} items\nAchievements: ${game.achievements.length}`,
+                                options: [
+                                    { text: 'Close', action: () => endDialog() }
+                                ]
+                            });
+                        }
+                    }
+                ],
+                walkableArea: { minY: 280 }
+            },
+            
+            cockpit: {
+                name: 'Ship Cockpit',
+                background: function(ctx) {
+                    ctx.fillStyle = '#1a1a2e';
+                    ctx.fillRect(0, 300, 640, 100);
+                    ctx.fillStyle = '#0f3460';
+                    ctx.fillRect(0, 0, 640, 300);
+                    
+                    // Windshield
+                    ctx.fillStyle = '#000';
+                    ctx.fillRect(100, 50, 440, 180);
+                    
+                    // Stars
+                    ctx.fillStyle = '#fff';
+                    for(let i = 0; i < 50; i++) {
+                        ctx.fillRect(100 + Math.random() * 440, 50 + Math.random() * 180, 2, 2);
+                    }
+                    
+                    // Navigation buttons
+                    const colors = ['#00ff00', '#ff9900', '#00ffff', '#ff00ff', '#ffff00'];
+                    for(let i = 0; i < 5; i++) {
+                        ctx.fillStyle = colors[i];
+                        ctx.fillRect(220 + i * 40, 225, 30, 20);
+                    }
+                    
+                    // Exit
+                    ctx.fillStyle = '#533483';
+                    ctx.fillRect(20, 180, 50, 120);
+                },
+                hotspots: [
+                    {
+                        x: 20, y: 180, width: 50, height: 120,
+                        name: 'Exit',
+                        description: 'Back to ship',
+                        action: () => changeRoom('shipInterior')
+                    },
+                    {
+                        x: 220, y: 225, width: 30, height: 20,
+                        name: 'Casino',
+                        description: 'Navigate to Casino',
+                        action: () => changeRoom('casino')
+                    },
+                    {
+                        x: 260, y: 225, width: 30, height: 20,
+                        name: 'Trading Post',
+                        description: 'Navigate to Trading Post',
+                        action: () => changeRoom('tradingPost')
+                    },
+                    {
+                        x: 300, y: 225, width: 30, height: 20,
+                        name: 'Mining',
+                        description: 'Navigate to Mining Outpost',
+                        action: () => changeRoom('miningOutpost')
+                    },
+                    {
+                        x: 340, y: 225, width: 30, height: 20,
+                        name: 'Missions',
+                        description: 'Navigate to Mission Board',
+                        action: () => changeRoom('missionBoard')
+                    },
+                    {
+                        x: 380, y: 225, width: 30, height: 20,
+                        name: 'More',
+                        description: 'More destinations',
+                        action: () => {
+                            startDialog({
+                                npc: 'Navigation',
+                                text: 'Select destination:',
+                                options: [
+                                    { text: 'Racing Arena', action: () => { changeRoom('racingArena'); endDialog(); }},
+                                    { text: 'Bounty Guild', action: () => { changeRoom('bountyGuild'); endDialog(); }},
+                                    { text: 'Galactic Bank', action: () => { changeRoom('bank'); endDialog(); }},
+                                    { text: 'Cancel', action: () => endDialog() }
+                                ]
+                            });
+                        }
+                    }
+                ],
+                walkableArea: { minY: 280 }
+            },
+            
+            casino: {
+                name: 'Lucky Star Casino',
+                background: function(ctx) {
+                    ctx.fillStyle = '#1a0a2a';
+                    ctx.fillRect(0, 0, 640, 400);
+                    ctx.fillStyle = '#2a1a3a';
+                    ctx.fillRect(0, 300, 640, 100);
+                    
+                    const brightness = 50 + Math.sin(Date.now() / 300) * 30;
+                    ctx.fillStyle = `hsl(330, 100%, ${brightness}%)`;
+                    ctx.font = 'bold 32px monospace';
+                    ctx.fillText('★ CASINO ★', 200, 60);
+                    
+                    // Slot machine
+                    ctx.fillStyle = '#ff0066';
+                    ctx.fillRect(80, 200, 80, 100);
+                    ctx.fillStyle = '#ffcc00';
+                    ctx.fillRect(90, 210, 60, 60);
+                    
+                    drawNPC(110, 260, '#ff00ff');
+                    
+                    ctx.fillStyle = '#555';
+                    ctx.fillRect(20, 200, 40, 100);
+                },
+                hotspots: [
+                    {
+                        x: 20, y: 200, width: 40, height: 100,
+                        name: 'Exit',
+                        description: 'Leave casino',
+                        action: () => changeRoom('shipInterior')
+                    },
+                    {
+                        x: 80, y: 200, width: 80, height: 100,
+                        name: 'Slot Machine',
+                        description: 'Try your luck!',
+                        action: () => {
+                            startDialog({
+                                npc: 'Slot Machine',
+                                text: 'Play for 50 credits?',
+                                options: [
+                                    {
+                                        text: 'Play (50cr)',
+                                        action: () => {
+                                            if (game.credits >= 50) {
+                                                game.credits -= 50;
+                                                const result = Math.random();
+                                                // Always win! Different amounts based on luck
+                                                if (result < 0.3) {
+                                                    game.credits += 500;
+                                                    game.gamblingWins++;
+                                                    updateDescription('🎰 JACKPOT! +500 credits!');
+                                                } else if (result < 0.7) {
+                                                    game.credits += 200;
+                                                    updateDescription('🎰 BIG WIN! +200 credits!');
+                                                } else {
+                                                    game.credits += 100;
+                                                    updateDescription('🎰 You win 100 credits!');
+                                                }
+                                            } else {
+                                                updateDescription('Not enough credits!');
+                                            }
+                                            endDialog();
+                                        }
+                                    },
+                                    { text: 'Leave', action: () => endDialog() }
+                                ]
+                            });
+                        }
+                    }
+                ],
+                walkableArea: { minY: 280 }
+            },
+            
+            tradingPost: {
+                name: 'Trading Post',
+                background: function(ctx) {
+                    ctx.fillStyle = '#2a2a3a';
+                    ctx.fillRect(0, 0, 640, 400);
+                    ctx.fillStyle = '#1a1a2a';
+                    ctx.fillRect(0, 300, 640, 100);
+                    
+                    // Stalls
+                    ctx.fillStyle = '#4a4a5a';
+                    ctx.fillRect(150, 180, 120, 120);
+                    ctx.fillRect(350, 180, 120, 120);
+                    
+                    drawNPC(200, 260, '#00aa00');
+                    drawNPC(400, 260, '#aa0000');
+                    
+                    ctx.fillStyle = '#555';
+                    ctx.fillRect(20, 200, 50, 100);
+                },
+                hotspots: [
+                    {
+                        x: 20, y: 200, width: 50, height: 100,
+                        name: 'Exit',
+                        description: 'Leave',
+                        action: () => changeRoom('shipInterior')
+                    },
+                    {
+                        x: 190, y: 260, width: 40, height: 60,
+                        name: 'Trader',
+                        description: 'Buys items',
+                        action: () => {
+                            startDialog({
+                                npc: 'Trader',
+                                text: 'I buy items for good prices!',
+                                options: [
+                                    {
+                                        text: 'Sell random item (100cr)',
+                                        action: () => {
+                                            if (game.inventory.length > 0) {
+                                                const item = game.inventory[0];
+                                                removeItem(item);
+                                                game.credits += 100;
+                                                updateDescription(`Sold ${item} for 100 credits!`);
+                                            } else {
+                                                updateDescription('No items to sell!');
+                                            }
+                                            endDialog();
+                                        }
+                                    },
+                                    { text: 'Leave', action: () => endDialog() }
+                                ]
+                            });
+                        }
+                    }
+                ],
+                walkableArea: { minY: 280 }
+            },
+            
+            miningOutpost: {
+                name: 'Mining Outpost',
+                background: function(ctx) {
+                    ctx.fillStyle = '#000';
+                    ctx.fillRect(0, 0, 640, 400);
+                    
+                    // Stars
+                    ctx.fillStyle = '#fff';
+                    for(let i = 0; i < 60; i++) {
+                        ctx.fillRect(Math.random() * 640, Math.random() * 300, 2, 2);
+                    }
+                    
+                    ctx.fillStyle = '#2a2a3a';
+                    ctx.fillRect(0, 300, 640, 100);
+                    
+                    // Asteroid
+                    ctx.fillStyle = '#4a4a4a';
+                    ctx.beginPath();
+                    ctx.arc(320, 150, 100, 0, Math.PI * 2);
+                    ctx.fill();
+                    
+                    drawNPC(320, 260, '#ff9900');
+                    
+                    ctx.fillStyle = '#666';
+                    ctx.fillRect(50, 250, 60, 50);
+                },
+                hotspots: [
+                    {
+                        x: 50, y: 250, width: 60, height: 50,
+                        name: 'Ship',
+                        description: 'Your ship',
+                        action: () => changeRoom('shipInterior')
+                    },
+                    {
+                        x: 310, y: 260, width: 40, height: 60,
+                        name: 'Foreman',
+                        description: 'Mining foreman',
+                        action: () => {
+                            startDialog({
+                                npc: 'Mining Foreman',
+                                text: 'Want to mine? Earn 300-800 credits!',
+                                options: [
+                                    {
+                                        text: 'Start mining',
+                                        action: () => {
+                                            if (Math.random() > 0.3) {
+                                                const payout = 300 + Math.floor(Math.random() * 500);
+                                                game.credits += payout;
+                                                game.miningScore++;
+                                                updateDescription(`⛏️ Success! +${payout} credits`);
+                                            } else {
+                                                updateDescription('⛏️ No ore found...');
+                                            }
+                                            endDialog();
+                                        }
+                                    },
+                                    { text: 'Leave', action: () => endDialog() }
+                                ]
+                            });
+                        }
+                    }
+                ],
+                walkableArea: { minY: 280 }
+            },
+            
+            missionBoard: {
+                name: 'Mission Board',
+                background: function(ctx) {
+                    ctx.fillStyle = '#1a2a3a';
+                    ctx.fillRect(0, 0, 640, 400);
+                    ctx.fillStyle = '#0a1a2a';
+                    ctx.fillRect(0, 300, 640, 100);
+                    
+                    // Board
+                    ctx.fillStyle = '#2a3a4a';
+                    ctx.fillRect(150, 80, 340, 200);
+                    
+                    ctx.fillStyle = '#00ffff';
+                    ctx.font = 'bold 20px monospace';
+                    ctx.fillText('MISSION BOARD', 230, 60);
+                    
+                    drawNPC(320, 260, '#00aaff');
+                    
+                    ctx.fillStyle = '#555';
+                    ctx.fillRect(20, 200, 50, 100);
+                },
+                hotspots: [
+                    {
+                        x: 20, y: 200, width: 50, height: 100,
+                        name: 'Exit',
+                        description: 'Leave',
+                        action: () => changeRoom('shipInterior')
+                    },
+                    {
+                        x: 310, y: 260, width: 40, height: 60,
+                        name: 'Coordinator',
+                        description: 'Mission coordinator',
+                        action: () => {
+                            startDialog({
+                                npc: 'Mission Coordinator',
+                                text: 'Choose a mission:',
+                                options: [
+                                    {
+                                        text: 'Delivery (500cr)',
+                                        action: () => {
+                                            if (Math.random() > 0.2) {
+                                                game.credits += 500;
+                                                updateDescription('📦 Delivery complete! +500cr');
+                                            } else {
+                                                updateDescription('📦 Failed...');
+                                            }
+                                            endDialog();
+                                        }
+                                    },
+                                    {
+                                        text: 'Rescue (1200cr)',
+                                        action: () => {
+                                            if (Math.random() > 0.5) {
+                                                game.credits += 1200;
+                                                updateDescription('🚁 Rescue successful! +1200cr');
+                                            } else {
+                                                updateDescription('🚁 Too late...');
+                                            }
+                                            endDialog();
+                                        }
+                                    },
+                                    { text: 'Leave', action: () => endDialog() }
+                                ]
+                            });
+                        }
+                    }
+                ],
+                walkableArea: { minY: 280 }
+            },
+            
+            racingArena: {
+                name: 'Racing Arena',
+                background: function(ctx) {
+                    ctx.fillStyle = '#000';
+                    ctx.fillRect(0, 0, 640, 400);
+                    
+                    // Colorful nebula
+                    for(let i = 0; i < 300; i += 30) {
+                        const hue = (i + Date.now() / 100) % 360;
+                        ctx.fillStyle = `hsla(${hue}, 70%, 40%, 0.3)`;
+                        ctx.fillRect(0, i, 640, 30);
+                    }
+                    
+                    ctx.fillStyle = '#1a1a2a';
+                    ctx.fillRect(0, 300, 640, 100);
+                    
+                    drawNPC(320, 260, '#00ffff');
+                    
+                    ctx.fillStyle = '#555';
+                    ctx.fillRect(20, 200, 50, 100);
+                },
+                hotspots: [
+                    {
+                        x: 20, y: 200, width: 50, height: 100,
+                        name: 'Exit',
+                        description: 'Leave',
+                        action: () => changeRoom('shipInterior')
+                    },
+                    {
+                        x: 310, y: 260, width: 40, height: 60,
+                        name: 'Coordinator',
+                        description: 'Race coordinator',
+                        action: () => {
+                            startDialog({
+                                npc: 'Race Coordinator',
+                                text: 'Race entry: 150cr. Win 600cr!',
+                                options: [
+                                    {
+                                        text: 'Race (150cr)',
+                                        action: () => {
+                                            if (game.credits >= 150) {
+                                                game.credits -= 150;
+                                                if (Math.random() > 0.5) {
+                                                    game.credits += 600;
+                                                    updateDescription('🏁 YOU WIN! +600cr');
+                                                } else {
+                                                    updateDescription('🏁 2nd place...');
+                                                }
+                                            } else {
+                                                updateDescription('Need 150cr!');
+                                            }
+                                            endDialog();
+                                        }
+                                    },
+                                    { text: 'Leave', action: () => endDialog() }
+                                ]
+                            });
+                        }
+                    }
+                ],
+                walkableArea: { minY: 280 }
+            },
+            
+            bountyGuild: {
+                name: 'Bounty Hunter Guild',
+                background: function(ctx) {
+                    ctx.fillStyle = '#1a1a1a';
+                    ctx.fillRect(0, 0, 640, 400);
+                    ctx.fillStyle = '#2a2a2a';
+                    ctx.fillRect(0, 300, 640, 100);
+                    
+                    // Wanted posters
+                    ctx.fillStyle = '#8b7355';
+                    ctx.fillRect(80, 80, 100, 140);
+                    ctx.fillRect(220, 80, 100, 140);
+                    
+                    ctx.fillStyle = '#ff0000';
+                    ctx.font = 'bold 16px monospace';
+                    ctx.fillText('WANTED', 100, 110);
+                    ctx.fillText('WANTED', 240, 110);
+                    
+                    drawNPC(320, 260, '#4a4a4a');
+                    
+                    ctx.fillStyle = '#555';
+                    ctx.fillRect(20, 200, 40, 100);
+                },
+                hotspots: [
+                    {
+                        x: 20, y: 200, width: 40, height: 100,
+                        name: 'Exit',
+                        description: 'Leave',
+                        action: () => changeRoom('shipInterior')
+                    },
+                    {
+                        x: 310, y: 260, width: 40, height: 60,
+                        name: 'Guild Master',
+                        description: 'Assigns bounties',
+                        action: () => {
+                            startDialog({
+                                npc: 'Guild Master',
+                                text: 'Choose a bounty:',
+                                options: [
+                                    {
+                                        text: 'Easy (500cr)',
+                                        action: () => {
+                                            if (Math.random() > 0.3) {
+                                                game.credits += 500;
+                                                updateDescription('🎯 Target captured! +500cr');
+                                            } else {
+                                                updateDescription('🎯 Escaped...');
+                                            }
+                                            endDialog();
+                                        }
+                                    },
+                                    {
+                                        text: 'Hard (2000cr)',
+                                        action: () => {
+                                            if (Math.random() > 0.7) {
+                                                game.credits += 2000;
+                                                updateDescription('🎯 LEGENDARY BOUNTY! +2000cr');
+                                            } else {
+                                                game.credits -= 200;
+                                                updateDescription('🎯 Ambushed! -200cr');
+                                            }
+                                            endDialog();
+                                        }
+                                    },
+                                    { text: 'Leave', action: () => endDialog() }
+                                ]
+                            });
+                        }
+                    }
+                ],
+                walkableArea: { minY: 280 }
+            },
+            
+            bank: {
+                name: 'Galactic Bank',
+                background: function(ctx) {
+                    ctx.fillStyle = '#1a2a4a';
+                    ctx.fillRect(0, 0, 640, 400);
+                    ctx.fillStyle = '#e0e0e0';
+                    ctx.fillRect(0, 300, 640, 100);
+                    
+                    ctx.fillStyle = '#ffcc00';
+                    ctx.font = 'bold 24px monospace';
+                    ctx.fillText('GALACTIC BANK', 190, 60);
+                    
+                    // Teller window
+                    ctx.fillStyle = '#4a5a7a';
+                    ctx.fillRect(250, 180, 140, 120);
+                    
+                    drawNPC(310, 260, '#2a4a6a');
+                    
+                    ctx.fillStyle = '#555';
+                    ctx.fillRect(20, 200, 50, 100);
+                },
+                hotspots: [
+                    {
+                        x: 20, y: 200, width: 50, height: 100,
+                        name: 'Exit',
+                        description: 'Leave',
+                        action: () => changeRoom('shipInterior')
+                    },
+                    {
+                        x: 300, y: 260, width: 40, height: 60,
+                        name: 'Teller',
+                        description: 'Bank services',
+                        action: () => {
+                            startDialog({
+                                npc: 'Bank Manager',
+                                text: 'Investment opportunities available!',
+                                options: [
+                                    {
+                                        text: 'Invest 500cr (+5%)',
+                                        action: () => {
+                                            if (game.credits >= 500) {
+                                                game.credits -= 500;
+                                                game.credits += 525;
+                                                updateDescription('💰 Investment returned 525cr!');
+                                            } else {
+                                                updateDescription('Need 500cr!');
+                                            }
+                                            endDialog();
+                                        }
+                                    },
+                                    {
+                                        text: 'Risky invest 2000cr (+50%)',
+                                        action: () => {
+                                            if (game.credits >= 2000) {
+                                                game.credits -= 2000;
+                                                if (Math.random() > 0.5) {
+                                                    game.credits += 3000;
+                                                    updateDescription('💰 HUGE RETURNS! +3000cr!');
+                                                } else {
+                                                    game.credits += 1200;
+                                                    updateDescription('💰 Market crash... only 1200cr back');
+                                                }
+                                            } else {
+                                                updateDescription('Need 2000cr!');
+                                            }
+                                            endDialog();
+                                        }
+                                    },
+                                    { text: 'Leave', action: () => endDialog() }
+                                ]
+                            });
+                        }
+                    }
+                ],
+                walkableArea: { minY: 280 }
+            },
+            
+
+            gameMarket: {
+                name: 'Game Market - Galactic Arcade',
+                background: function(ctx) {
+                    // Dark arcade atmosphere
+                    ctx.fillStyle = '#0a0a1a';
+                    ctx.fillRect(0, 0, 640, 400);
+                    
+                    // Neon lights
+                    const time = Date.now() / 1000;
+                    const glow = 50 + Math.sin(time * 2) * 30;
+                    ctx.fillStyle = `hsl(280, 100%, ${glow}%)`;
+                    ctx.shadowBlur = 20;
+                    ctx.shadowColor = `hsl(280, 100%, ${glow}%)`;
+                    ctx.font = 'bold 28px monospace';
+                    ctx.fillText('GAME ARCADE', 200, 50);
+                    ctx.shadowBlur = 0;
+                    
+                    // Floor
+                    ctx.fillStyle = '#1a1a2a';
+                    ctx.fillRect(0, 300, 640, 100);
+                    
+                    // Game cabinets (simplified representation)
+                    for(let i = 0; i < 6; i++) {
+                        const x = 50 + i * 100;
+                        const y = 120;
+                        
+                        // Cabinet
+                        ctx.fillStyle = '#2a2a4a';
+                        ctx.fillRect(x, y, 80, 100);
+                        
+                        // Screen
+                        const hue = (i * 60) % 360;
+                        ctx.fillStyle = `hsl(${hue}, 70%, 50%)`;
+                        ctx.fillRect(x + 10, y + 10, 60, 50);
+                        
+                        // Controls
+                        ctx.fillStyle = '#4a4a6a';
+                        ctx.fillRect(x + 20, y + 70, 40, 20);
+                    }
+                    
+                    // Second row
+                    for(let i = 0; i < 6; i++) {
+                        const x = 50 + i * 100;
+                        const y = 240;
+                        
+                        ctx.fillStyle = '#2a2a4a';
+                        ctx.fillRect(x, y, 80, 60);
+                        
+                        const hue = (i * 60 + 180) % 360;
+                        ctx.fillStyle = `hsl(${hue}, 70%, 50%)`;
+                        ctx.fillRect(x + 10, y + 10, 60, 30);
+                    }
+                    
+                    // Arcade attendant
+                    drawNPC(320, 260, '#ff00ff');
+                    
+                    // Exit door
+                    ctx.fillStyle = '#555';
+                    ctx.fillRect(20, 200, 30, 100);
+                    
+                    // Cost sign
+                    ctx.fillStyle = '#ffff00';
+                    ctx.font = '14px monospace';
+                    ctx.fillText('100 CREDITS PER GAME', 210, 90);
+                },
+                hotspots: [
+                    {
+                        x: 20, y: 200, width: 30, height: 100,
+                        name: 'Exit',
+                        description: 'Back to ship',
+                        action: () => changeRoom('shipInterior')
+                    },
+                    {
+                        x: 310, y: 260, width: 40, height: 60,
+                        name: 'Arcade Manager',
+                        description: 'Game selection menu',
+                        action: () => {
+                            startDialog({
+                                npc: 'Arcade Manager',
+                                text: 'Welcome to the Galactic Arcade! Each game costs 100 credits. Choose a category:',
+                                options: [
+                                    {
+                                        text: 'Action Games',
+                                        action: () => {
+                                            endDialog();
+                                            setTimeout(() => {
+                                                startDialog({
+                                                    npc: 'Action Games',
+                                                    text: 'Pick your action game! (100cr each)',
+                                                    options: [
+                                                        { text: 'Ball Runner 3D', action: () => { if(game.credits >= 100) { game.credits -= 100; window.open('ball-runner-3d.html', '_blank'); updateDescription('🎮 Launching Ball Runner 3D! -100cr'); } else { updateDescription('Need 100cr!'); } endDialog(); }},
+                                                        { text: 'Descent Game', action: () => { if(game.credits >= 100) { game.credits -= 100; window.open('descent-game.html', '_blank'); updateDescription('🎮 Launching Descent! -100cr'); } else { updateDescription('Need 100cr!'); } endDialog(); }},
+                                                        { text: 'Moto Racer', action: () => { if(game.credits >= 100) { game.credits -= 100; window.open('moto_racer.html', '_blank'); updateDescription('🎮 Launching Moto Racer! -100cr'); } else { updateDescription('Need 100cr!'); } endDialog(); }},
+                                                        { text: 'Sky Pilot', action: () => { if(game.credits >= 100) { game.credits -= 100; window.open('sky_pilot.html', '_blank'); updateDescription('🎮 Launching Sky Pilot! -100cr'); } else { updateDescription('Need 100cr!'); } endDialog(); }},
+                                                        { text: 'Monster Rampage', action: () => { if(game.credits >= 100) { game.credits -= 100; window.open('monster_rampage.html', '_blank'); updateDescription('🎮 Launching Monster Rampage! -100cr'); } else { updateDescription('Need 100cr!'); } endDialog(); }},
+                                                        { text: 'Back', action: () => endDialog() }
+                                                    ]
+                                                });
+                                            }, 100);
+                                        }
+                                    },
+                                    {
+                                        text: 'Tower Defense',
+                                        action: () => {
+                                            endDialog();
+                                            setTimeout(() => {
+                                                startDialog({
+                                                    npc: 'Tower Defense',
+                                                    text: 'Choose your tower defense! (100cr each)',
+                                                    options: [
+                                                        { text: 'Tower Defense Classic', action: () => { if(game.credits >= 100) { game.credits -= 100; window.open('tower_defense.html', '_blank'); updateDescription('🎮 Launching TD! -100cr'); } else { updateDescription('Need 100cr!'); } endDialog(); }},
+                                                        { text: 'TD: Desert', action: () => { if(game.credits >= 100) { game.credits -= 100; window.open('tower_defense_desert.html', '_blank'); updateDescription('🎮 Launching Desert TD! -100cr'); } else { updateDescription('Need 100cr!'); } endDialog(); }},
+                                                        { text: 'TD: Lava', action: () => { if(game.credits >= 100) { game.credits -= 100; window.open('tower_defense_lava.html', '_blank'); updateDescription('🎮 Launching Lava TD! -100cr'); } else { updateDescription('Need 100cr!'); } endDialog(); }},
+                                                        { text: 'TD: Space', action: () => { if(game.credits >= 100) { game.credits -= 100; window.open('tower_defense_space.html', '_blank'); updateDescription('🎮 Launching Space TD! -100cr'); } else { updateDescription('Need 100cr!'); } endDialog(); }},
+                                                        { text: 'Halloween TD', action: () => { if(game.credits >= 100) { game.credits -= 100; window.open('halloween-tower-defense.html', '_blank'); updateDescription('🎮 Launching Halloween TD! -100cr'); } else { updateDescription('Need 100cr!'); } endDialog(); }},
+                                                        { text: 'Candy Land Defense', action: () => { if(game.credits >= 100) { game.credits -= 100; window.open('candy-land-defense.html', '_blank'); updateDescription('🎮 Launching Candy TD! -100cr'); } else { updateDescription('Need 100cr!'); } endDialog(); }},
+                                                        { text: 'Underwater Defense', action: () => { if(game.credits >= 100) { game.credits -= 100; window.open('underwater-ocean-defense.html', '_blank'); updateDescription('🎮 Launching Ocean TD! -100cr'); } else { updateDescription('Need 100cr!'); } endDialog(); }},
+                                                        { text: 'Synth Defense', action: () => { if(game.credits >= 100) { game.credits -= 100; window.open('synth-defense.html', '_blank'); updateDescription('🎮 Launching Synth TD! -100cr'); } else { updateDescription('Need 100cr!'); } endDialog(); }},
+                                                        { text: 'Back', action: () => endDialog() }
+                                                    ]
+                                                });
+                                            }, 100);
+                                        }
+                                    },
+                                    {
+                                        text: 'Space & Shooting',
+                                        action: () => {
+                                            endDialog();
+                                            setTimeout(() => {
+                                                startDialog({
+                                                    npc: 'Space Games',
+                                                    text: 'Space shooters! (100cr each)',
+                                                    options: [
+                                                        { text: 'Space Alien Invasion', action: () => { if(game.credits >= 100) { game.credits -= 100; window.open('space-alien-invasion.html', '_blank'); updateDescription('🎮 Launching Alien Invasion! -100cr'); } else { updateDescription('Need 100cr!'); } endDialog(); }},
+                                                        { text: 'Space Invaders Remix', action: () => { if(game.credits >= 100) { game.credits -= 100; window.open('space-invaders-remix.html', '_blank'); updateDescription('🎮 Launching Space Invaders! -100cr'); } else { updateDescription('Need 100cr!'); } endDialog(); }},
+                                                        { text: 'Tank Game', action: () => { if(game.credits >= 100) { game.credits -= 100; window.open('tank_game.html', '_blank'); updateDescription('🎮 Launching Tank Battle! -100cr'); } else { updateDescription('Need 100cr!'); } endDialog(); }},
+                                                        { text: 'Back', action: () => endDialog() }
+                                                    ]
+                                                });
+                                            }, 100);
+                                        }
+                                    },
+                                    {
+                                        text: 'Zombie Survival',
+                                        action: () => {
+                                            endDialog();
+                                            setTimeout(() => {
+                                                startDialog({
+                                                    npc: 'Zombie Games',
+                                                    text: 'Survive the undead! (100cr each)',
+                                                    options: [
+                                                        { text: 'Zombies: Pistol', action: () => { if(game.credits >= 100) { game.credits -= 100; window.open('zombie_survivors_pistol.html', '_blank'); updateDescription('🎮 Launching Zombie Pistol! -100cr'); } else { updateDescription('Need 100cr!'); } endDialog(); }},
+                                                        { text: 'Zombies: Flamethrower', action: () => { if(game.credits >= 100) { game.credits -= 100; window.open('zombie_survivors_flamethrower.html', '_blank'); updateDescription('🎮 Launching Zombie Flamethrower! -100cr'); } else { updateDescription('Need 100cr!'); } endDialog(); }},
+                                                        { text: 'Zombies: RPG', action: () => { if(game.credits >= 100) { game.credits -= 100; window.open('zombie_survivors_rpg.html', '_blank'); updateDescription('🎮 Launching Zombie RPG! -100cr'); } else { updateDescription('Need 100cr!'); } endDialog(); }},
+                                                        { text: 'Back', action: () => endDialog() }
+                                                    ]
+                                                });
+                                            }, 100);
+                                        }
+                                    },
+                                    {
+                                        text: 'RPG & Adventure',
+                                        action: () => {
+                                            endDialog();
+                                            setTimeout(() => {
+                                                startDialog({
+                                                    npc: 'RPG Games',
+                                                    text: 'Adventure awaits! (100cr each)',
+                                                    options: [
+                                                        { text: 'RPG Game', action: () => { if(game.credits >= 100) { game.credits -= 100; window.open('rpg_game.html', '_blank'); updateDescription('🎮 Launching RPG! -100cr'); } else { updateDescription('Need 100cr!'); } endDialog(); }},
+                                                        { text: 'Quest Game', action: () => { if(game.credits >= 100) { game.credits -= 100; window.open('quest-game.html', '_blank'); updateDescription('🎮 Launching Quest! -100cr'); } else { updateDescription('Need 100cr!'); } endDialog(); }},
+                                                        { text: 'Ninja Boss Battle', action: () => { if(game.credits >= 100) { game.credits -= 100; window.open('ninja-boss-battle.html', '_blank'); updateDescription('🎮 Launching Ninja Battle! -100cr'); } else { updateDescription('Need 100cr!'); } endDialog(); }},
+                                                        { text: 'Trump Maze Runner', action: () => { if(game.credits >= 100) { game.credits -= 100; window.open('trump_maze_runner.html', '_blank'); updateDescription('🎮 Launching Maze Runner! -100cr'); } else { updateDescription('Need 100cr!'); } endDialog(); }},
+                                                        { text: 'Back', action: () => endDialog() }
+                                                    ]
+                                                });
+                                            }, 100);
+                                        }
+                                    },
+                                    {
+                                        text: 'Puzzle & Casual',
+                                        action: () => {
+                                            endDialog();
+                                            setTimeout(() => {
+                                                startDialog({
+                                                    npc: 'Puzzle Games',
+                                                    text: 'Brain teasers! (100cr each)',
+                                                    options: [
+                                                        { text: 'Circle Clicker', action: () => { if(game.credits >= 100) { game.credits -= 100; window.open('circle_clicker.html', '_blank'); updateDescription('🎮 Launching Circle Clicker! -100cr'); } else { updateDescription('Need 100cr!'); } endDialog(); }},
+                                                        { text: 'Fishing Game', action: () => { if(game.credits >= 100) { game.credits -= 100; window.open('fishing_game.html', '_blank'); updateDescription('🎮 Launching Fishing! -100cr'); } else { updateDescription('Need 100cr!'); } endDialog(); }},
+                                                        { text: 'Isolinear Grid', action: () => { if(game.credits >= 100) { game.credits -= 100; window.open('isolinear_grid.html', '_blank'); updateDescription('🎮 Launching Isolinear Grid! -100cr'); } else { updateDescription('Need 100cr!'); } endDialog(); }},
+                                                        { text: 'Recover ISO Chips', action: () => { if(game.credits >= 100) { game.credits -= 100; window.open('recover_iso_chips.html', '_blank'); updateDescription('🎮 Launching ISO Chips! -100cr'); } else { updateDescription('Need 100cr!'); } endDialog(); }},
+                                                        { text: 'Presidential Minesweeper', action: () => { if(game.credits >= 100) { game.credits -= 100; window.open('presidential-minesweeper.html', '_blank'); updateDescription('🎮 Launching Minesweeper! -100cr'); } else { updateDescription('Need 100cr!'); } endDialog(); }},
+                                                        { text: 'Politics 2025', action: () => { if(game.credits >= 100) { game.credits -= 100; window.open('politics-2025-game.html', '_blank'); updateDescription('🎮 Launching Politics 2025! -100cr'); } else { updateDescription('Need 100cr!'); } endDialog(); }},
+                                                        { text: 'Back', action: () => endDialog() }
+                                                    ]
+                                                });
+                                            }, 100);
+                                        }
+                                    },
+                                    {
+                                        text: 'Music & Creative',
+                                        action: () => {
+                                            endDialog();
+                                            setTimeout(() => {
+                                                startDialog({
+                                                    npc: 'Creative Apps',
+                                                    text: 'Make music! (100cr each)',
+                                                    options: [
+                                                        { text: 'AI Music Generator', action: () => { if(game.credits >= 100) { game.credits -= 100; window.open('ai-music-generator.html', '_blank'); updateDescription('🎮 Launching Music Gen! -100cr'); } else { updateDescription('Need 100cr!'); } endDialog(); }},
+                                                        { text: 'AI Music Advanced', action: () => { if(game.credits >= 100) { game.credits -= 100; window.open('ai-music-generator-advanced.html', '_blank'); updateDescription('🎮 Launching Advanced Music! -100cr'); } else { updateDescription('Need 100cr!'); } endDialog(); }},
+                                                        { text: 'Back', action: () => endDialog() }
+                                                    ]
+                                                });
+                                            }, 100);
+                                        }
+                                    },
+                                    {
+                                        text: 'Leave Arcade',
+                                        action: () => endDialog()
+                                    }
+                                ]
+                            });
+                        }
+                    }
+                ],
+                walkableArea: { minY: 280 }
+            },
+            
+            explorationBay: {
+                name: 'Exploration Bay',
+                background: function(ctx) {
+                    ctx.fillStyle = '#1a2a1a';
+                    ctx.fillRect(0, 0, 640, 400);
+                    ctx.fillStyle = '#0a1a0a';
+                    ctx.fillRect(0, 300, 640, 100);
+                    
+                    // Holographic star map
+                    ctx.strokeStyle = '#00ff88';
+                    ctx.lineWidth = 2;
+                    for(let i = 0; i < 5; i++) {
+                        const x = 200 + Math.cos(i * 1.5) * 100;
+                        const y = 150 + Math.sin(i * 1.5) * 80;
+                        ctx.beginPath();
+                        ctx.arc(x, y, 15, 0, Math.PI * 2);
+                        ctx.stroke();
+                    }
+                    
+                    // Navigation console
+                    ctx.fillStyle = '#2a4a2a';
+                    ctx.fillRect(200, 220, 240, 80);
+                    ctx.fillStyle = '#00ff00';
+                    ctx.font = '16px monospace';
+                    ctx.fillText('EXPLORATION NAV', 220, 250);
+                    
+                    // Planet buttons
+                    const colors = ['#00aa00', '#aa0000', '#0000aa', '#aa00aa', '#ffaa00', '#00aaaa'];
+                    for(let i = 0; i < 6; i++) {
+                        ctx.fillStyle = colors[i];
+                        ctx.fillRect(210 + (i % 3) * 70, 260 + Math.floor(i / 3) * 25, 60, 20);
+                    }
+                    
+                    // Exit door
+                    ctx.fillStyle = '#6a4a8a';
+                    ctx.fillRect(20, 180, 60, 120);
+                },
+                hotspots: [
+                    {
+                        x: 20, y: 180, width: 60, height: 120,
+                        name: 'Exit',
+                        description: 'Back to ship interior',
+                        action: () => changeRoom('shipInterior')
+                    },
+                    {
+                        x: 210, y: 260, width: 60, height: 20,
+                        name: 'Verdantia Button',
+                        description: 'Navigate to Verdantia',
+                        action: () => {
+                            updateDescription('Jumping to jungle planet Verdantia...');
+                            setTimeout(() => changeRoom('verdantia'), 1000);
+                        }
+                    },
+                    {
+                        x: 280, y: 260, width: 60, height: 20,
+                        name: 'Crimson Moon Button',
+                        description: 'Navigate to Crimson Moon',
+                        action: () => {
+                            updateDescription('Approaching Crimson Moon...');
+                            setTimeout(() => changeRoom('crimsonMoon'), 1000);
+                        }
+                    },
+                    {
+                        x: 350, y: 260, width: 60, height: 20,
+                        name: 'Aquaria Button',
+                        description: 'Navigate to Ocean World',
+                        action: () => {
+                            updateDescription('Descending to water planet Aquaria...');
+                            setTimeout(() => changeRoom('aquaria'), 1000);
+                        }
+                    },
+                    {
+                        x: 210, y: 285, width: 60, height: 20,
+                        name: 'Xenon-7 Button',
+                        description: 'Navigate to Xenon-7',
+                        action: () => {
+                            updateDescription('Landing on alien world Xenon-7...');
+                            setTimeout(() => changeRoom('xenon7'), 1000);
+                        }
+                    },
+                    {
+                        x: 280, y: 285, width: 60, height: 20,
+                        name: 'Ice Station Button',
+                        description: 'Navigate to Ice Station',
+                        action: () => {
+                            updateDescription('Approaching frozen outpost...');
+                            setTimeout(() => changeRoom('iceStation'), 1000);
+                        }
+                    },
+                    {
+                        x: 350, y: 285, width: 60, height: 20,
+                        name: 'Desert World Button',
+                        description: 'Navigate to Aridus',
+                        action: () => {
+                            updateDescription('Landing on desert planet Aridus...');
+                            setTimeout(() => changeRoom('aridus'), 1000);
+                        }
+                    }
+                ],
+                walkableArea: { minY: 280 }
+            },
+            
+            verdantia: {
+                name: 'Verdantia - Jungle Planet Surface',
+                background: function(ctx) {
+                    // Sky
+                    ctx.fillStyle = '#87ceeb';
+                    ctx.fillRect(0, 0, 640, 300);
+                    
+                    // Dense jungle
+                    ctx.fillStyle = '#1a4d2e';
+                    for(let i = 0; i < 640; i += 30) {
+                        const height = 120 + Math.random() * 80;
+                        ctx.fillRect(i, 300 - height, 25, height);
+                    }
+                    
+                    // Jungle floor
+                    ctx.fillStyle = '#2d5016';
+                    ctx.fillRect(0, 300, 640, 100);
+                    
+                    // Vines
+                    ctx.strokeStyle = '#0a3a1a';
+                    ctx.lineWidth = 3;
+                    for(let i = 0; i < 10; i++) {
+                        ctx.beginPath();
+                        ctx.moveTo(50 + i * 60, 100);
+                        ctx.quadraticCurveTo(50 + i * 60 + 20, 200, 50 + i * 60, 300);
+                        ctx.stroke();
+                    }
+                    
+                    // Exotic flowers
+                    ctx.fillStyle = '#ff00ff';
+                    ctx.beginPath();
+                    ctx.arc(200, 270, 15, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.fillStyle = '#ffff00';
+                    ctx.beginPath();
+                    ctx.arc(450, 260, 18, 0, Math.PI * 2);
+                    ctx.fill();
+                    
+                    // Wild creature
+                    ctx.fillStyle = '#aa00aa';
+                    ctx.fillRect(350, 255, 30, 45);
+                    ctx.beginPath();
+                    ctx.arc(365, 250, 12, 0, Math.PI * 2);
+                    ctx.fill();
+                    // Eyes
+                    ctx.fillStyle = '#ffff00';
+                    ctx.fillRect(358, 248, 5, 5);
+                    ctx.fillRect(370, 248, 5, 5);
+                    
+                    // Cave entrance
+                    ctx.fillStyle = '#000';
+                    ctx.beginPath();
+                    ctx.arc(100, 280, 40, 0, Math.PI);
+                    ctx.fill();
+                    
+                    // Your ship
+                    ctx.fillStyle = '#666';
+                    ctx.fillRect(520, 250, 60, 50);
+                },
+                hotspots: [
+                    {
+                        x: 520, y: 250, width: 60, height: 50,
+                        name: 'Your Ship',
+                        description: 'Return to ship',
+                        action: () => changeRoom('explorationBay')
+                    },
+                    {
+                        x: 60, y: 240, width: 80, height: 60,
+                        name: 'Cave Entrance',
+                        description: 'Dark jungle cave',
+                        action: () => {
+                            updateDescription('Entering underground cave system...');
+                            setTimeout(() => changeRoom('verdantiaCave'), 1000);
+                        }
+                    },
+                    {
+                        x: 185, y: 255, width: 30, height: 30,
+                        name: 'Exotic Flower',
+                        description: 'Rare alien flower',
+                        action: () => {
+                            if (!hasItem('Verdant Flower')) {
+                                addItem('Verdant Flower');
+                                game.credits += 80;
+                                updateDescription('🌺 Collected exotic flower! +80 credits!');
+                            } else {
+                                updateDescription('Already collected.');
+                            }
+                        }
+                    },
+                    {
+                        x: 435, y: 245, width: 30, height: 30,
+                        name: 'Glowing Plant',
+                        description: 'Bioluminescent flora',
+                        action: () => {
+                            if (!hasItem('Glow Spores')) {
+                                addItem('Glow Spores');
+                                game.credits += 120;
+                                updateDescription('✨ Harvested glowing spores! +120 credits!');
+                            } else {
+                                updateDescription('Already harvested.');
+                            }
+                        }
+                    },
+                    {
+                        x: 340, y: 250, width: 40, height: 60,
+                        name: 'Jungle Beast',
+                        description: 'A curious alien creature',
+                        action: () => {
+                            startDialog({
+                                npc: 'Jungle Beast',
+                                text: '*The creature chirps and tilts its head. It seems friendly but hungry!*',
+                                options: [
+                                    {
+                                        text: 'Feed it (if you have food)',
+                                        action: () => {
+                                            if (hasItem('Food Cargo')) {
+                                                removeItem('Food Cargo');
+                                                addItem('Beast Companion');
+                                                game.credits += 200;
+                                                updateDescription('🐾 The beast befriends you! +200 credits bonus!');
+                                            } else {
+                                                updateDescription('You have no food to give.');
+                                            }
+                                            endDialog();
+                                        }
+                                    },
+                                    {
+                                        text: 'Pet it',
+                                        action: () => {
+                                            updateDescription('*Purrs happily* The creature seems content.');
+                                            endDialog();
+                                        }
+                                    },
+                                    {
+                                        text: 'Leave it alone',
+                                        action: () => endDialog()
+                                    }
+                                ]
+                            });
+                        }
+                    }
+                ],
+                walkableArea: { minY: 280 }
+            },
+            
+            verdantiaCave: {
+                name: 'Underground Cave Network',
+                background: function(ctx) {
+                    ctx.fillStyle = '#0a0a0a';
+                    ctx.fillRect(0, 0, 640, 400);
+                    
+                    // Cave walls
+                    ctx.fillStyle = '#1a1a1a';
+                    for(let i = 0; i < 640; i += 50) {
+                        ctx.fillRect(i, 0, 45, 280 + Math.random() * 20);
+                    }
+                    
+                    ctx.fillStyle = '#2a2a2a';
+                    ctx.fillRect(0, 300, 640, 100);
+                    
+                    // Glowing crystals
+                    ctx.fillStyle = '#00ffaa';
+                    ctx.shadowBlur = 15;
+                    ctx.shadowColor = '#00ffaa';
+                    ctx.beginPath();
+                    ctx.arc(300, 250, 12, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.beginPath();
+                    ctx.arc(450, 240, 15, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.shadowBlur = 0;
+                    
+                    // Underground pool
+                    ctx.fillStyle = '#1a4a6a';
+                    ctx.fillRect(150, 280, 150, 20);
+                    
+                    // Cave creature
+                    ctx.fillStyle = '#666';
+                    ctx.fillRect(380, 260, 25, 40);
+                    ctx.fillStyle = '#ff0000';
+                    ctx.fillRect(385, 265, 5, 5);
+                    ctx.fillRect(395, 265, 5, 5);
+                    
+                    // Exit tunnel
+                    ctx.fillStyle = '#0a0a1a';
+                    ctx.beginPath();
+                    ctx.arc(80, 260, 40, 0, Math.PI * 2);
+                    ctx.fill();
+                },
+                hotspots: [
+                    {
+                        x: 40, y: 220, width: 80, height: 80,
+                        name: 'Exit Tunnel',
+                        description: 'Back to surface',
+                        action: () => changeRoom('verdantia')
+                    },
+                    {
+                        x: 288, y: 238, width: 24, height: 24,
+                        name: 'Crystal 1',
+                        description: 'Glowing cave crystal',
+                        action: () => {
+                            if (!hasItem('Cave Crystal')) {
+                                addItem('Cave Crystal');
+                                game.credits += 150;
+                                updateDescription('💎 Mined glowing crystal! +150 credits!');
+                            } else {
+                                updateDescription('Already collected.');
+                            }
+                        }
+                    },
+                    {
+                        x: 370, y: 260, width: 40, height: 50,
+                        name: 'Cave Dweller',
+                        description: 'Mysterious cave creature',
+                        action: () => {
+                            startDialog({
+                                npc: 'Cave Dweller',
+                                text: '*Hisssss* This is MY cave! Pay tribute or leave!',
+                                options: [
+                                    {
+                                        text: 'Pay 100 credits',
+                                        action: () => {
+                                            if (game.credits >= 100) {
+                                                game.credits -= 100;
+                                                game.credits += 300;
+                                                updateDescription('The creature gives you ancient treasure! Net +200 credits!');
+                                            } else {
+                                                updateDescription('Not enough credits!');
+                                            }
+                                            endDialog();
+                                        }
+                                    },
+                                    {
+                                        text: 'Run away!',
+                                        action: () => {
+                                            updateDescription('You flee back to the surface!');
+                                            setTimeout(() => changeRoom('verdantia'), 500);
+                                            endDialog();
+                                        }
+                                    }
+                                ]
+                            });
+                        }
+                    },
+                    {
+                        x: 150, y: 280, width: 150, height: 20,
+                        name: 'Underground Pool',
+                        description: 'Crystal clear water',
+                        action: () => updateDescription('The water is pure and refreshing. Strange fish swim below.')
+                    }
+                ],
+                walkableArea: { minY: 280 }
+            },
+            
+            crimsonMoon: {
+                name: 'Crimson Moon - Abandoned Station',
+                background: function(ctx) {
+                    // Red sky
+                    const gradient = ctx.createLinearGradient(0, 0, 0, 300);
+                    gradient.addColorStop(0, '#4a0000');
+                    gradient.addColorStop(1, '#8a0000');
+                    ctx.fillStyle = gradient;
+                    ctx.fillRect(0, 0, 640, 300);
+                    
+                    // Moon surface
+                    ctx.fillStyle = '#6a4a4a';
+                    ctx.fillRect(0, 300, 640, 100);
+                    
+                    // Abandoned station
+                    ctx.fillStyle = '#3a3a3a';
+                    ctx.fillRect(200, 180, 240, 120);
+                    ctx.fillStyle = '#1a1a1a';
+                    ctx.fillRect(220, 200, 80, 80);
+                    ctx.fillRect(320, 200, 80, 80);
+                    
+                    // Damaged antenna
+                    ctx.strokeStyle = '#888';
+                    ctx.lineWidth = 3;
+                    ctx.beginPath();
+                    ctx.moveTo(320, 180);
+                    ctx.lineTo(320, 120);
+                    ctx.lineTo(340, 140);
+                    ctx.stroke();
+                    
+                    // Robot guard
+                    ctx.fillStyle = '#aa0000';
+                    ctx.fillRect(460, 250, 30, 50);
+                    ctx.fillStyle = '#ff0000';
+                    ctx.fillRect(465, 255, 8, 8);
+                    ctx.fillRect(477, 255, 8, 8);
+                    
+                    // Supply crates
+                    ctx.fillStyle = '#5a5a3a';
+                    ctx.fillRect(100, 260, 40, 40);
+                    ctx.fillRect(150, 270, 35, 30);
+                    
+                    // Your lander
+                    ctx.fillStyle = '#666';
+                    ctx.fillRect(30, 250, 50, 50);
+                },
+                hotspots: [
+                    {
+                        x: 30, y: 250, width: 50, height: 50,
+                        name: 'Your Lander',
+                        description: 'Return to ship',
+                        action: () => changeRoom('explorationBay')
+                    },
+                    {
+                        x: 200, y: 180, width: 240, height: 120,
+                        name: 'Abandoned Station',
+                        description: 'Old mining station',
+                        action: () => {
+                            updateDescription('Entering station interior...');
+                            setTimeout(() => changeRoom('stationInterior'), 1000);
+                        }
+                    },
+                    {
+                        x: 100, y: 260, width: 85, height: 40,
+                        name: 'Supply Crates',
+                        description: 'Old supply containers',
+                        action: () => {
+                            if (!game.flags.cratesLooted) {
+                                game.flags.cratesLooted = true;
+                                addItem('Medical Supplies');
+                                addItem('Ration Pack');
+                                game.credits += 180;
+                                updateDescription('📦 Found medical supplies and rations! +180 credits!');
+                            } else {
+                                updateDescription('Crates are empty.');
+                            }
+                        }
+                    },
+                    {
+                        x: 450, y: 250, width: 40, height: 60,
+                        name: 'Security Robot',
+                        description: 'Malfunctioning guard bot',
+                        action: () => {
+                            startDialog({
+                                npc: 'Security Robot',
+                                text: 'HALT! IDENTIFY... *bzzt* ...YOURSELF. AUTHORIZATION... *error* ...REQUIRED.',
+                                options: [
+                                    {
+                                        text: 'Show credentials',
+                                        action: () => {
+                                            if (hasItem('Keycard')) {
+                                                updateDescription('*beep* ACCESS GRANTED. The robot powers down.');
+                                                game.flags.robotDefeated = true;
+                                            } else {
+                                                updateDescription('INVALID CREDENTIALS. *warning sounds*');
+                                            }
+                                            endDialog();
+                                        }
+                                    },
+                                    {
+                                        text: 'Try to hack it (Tech Cargo)',
+                                        action: () => {
+                                            if (hasItem('Tech Cargo')) {
+                                                removeItem('Tech Cargo');
+                                                game.flags.robotDefeated = true;
+                                                game.credits += 250;
+                                                updateDescription('🤖 Successfully hacked! Robot rewards you! +250 credits!');
+                                            } else {
+                                                updateDescription('Need tech equipment to hack!');
+                                            }
+                                            endDialog();
+                                        }
+                                    },
+                                    {
+                                        text: 'Back away slowly',
+                                        action: () => endDialog()
+                                    }
+                                ]
+                            });
+                        }
+                    }
+                ],
+                walkableArea: { minY: 280 }
+            },
+            
+            stationInterior: {
+                name: 'Station Interior',
+                background: function(ctx) {
+                    ctx.fillStyle = '#1a1a1a';
+                    ctx.fillRect(0, 0, 640, 400);
+                    ctx.fillStyle = '#2a2a2a';
+                    ctx.fillRect(0, 300, 640, 100);
+                    
+                    // Emergency lights
+                    ctx.fillStyle = '#ff0000';
+                    for(let i = 0; i < 5; i++) {
+                        if (Math.random() > 0.5) {
+                            ctx.beginPath();
+                            ctx.arc(100 + i * 120, 80, 10, 0, Math.PI * 2);
+                            ctx.fill();
+                        }
+                    }
+                    
+                    // Control panels
+                    ctx.fillStyle = '#3a3a4a';
+                    ctx.fillRect(100, 200, 100, 100);
+                    ctx.fillRect(400, 220, 120, 80);
+                    
+                    // Screens
+                    ctx.fillStyle = '#00ff00';
+                    ctx.fillRect(110, 210, 80, 60);
+                    ctx.fillStyle = '#000';
+                    ctx.font = '10px monospace';
+                    ctx.fillText('SYSTEM', 120, 235);
+                    ctx.fillText('OFFLINE', 120, 250);
+                    
+                    // Exit airlock
+                    ctx.fillStyle = '#555';
+                    ctx.fillRect(20, 200, 50, 100);
+                },
+                hotspots: [
+                    {
+                        x: 20, y: 200, width: 50, height: 100,
+                        name: 'Airlock',
+                        description: 'Exit to moon surface',
+                        action: () => changeRoom('crimsonMoon')
+                    },
+                    {
+                        x: 100, y: 200, width: 100, height: 100,
+                        name: 'Main Computer',
+                        description: 'Station mainframe',
+                        action: () => {
+                            startDialog({
+                                npc: 'Station Computer',
+                                text: 'EMERGENCY POWER ACTIVE. Data logs accessible. Download files?',
+                                options: [
+                                    {
+                                        text: 'Download data',
+                                        action: () => {
+                                            if (!hasItem('Station Data')) {
+                                                addItem('Station Data');
+                                                game.credits += 300;
+                                                updateDescription('💾 Downloaded valuable data! +300 credits!');
+                                            } else {
+                                                updateDescription('Data already downloaded.');
+                                            }
+                                            endDialog();
+                                        }
+                                    },
+                                    {
+                                        text: 'Leave',
+                                        action: () => endDialog()
+                                    }
+                                ]
+                            });
+                        }
+                    }
+                ],
+                walkableArea: { minY: 280 }
+            },
+            
+            aquaria: {
+                name: 'Aquaria - Ocean World Platform',
+                background: function(ctx) {
+                    // Sky
+                    ctx.fillStyle = '#4a8aaa';
+                    ctx.fillRect(0, 0, 640, 300);
+                    
+                    // Ocean
+                    ctx.fillStyle = '#1a4a6a';
+                    ctx.fillRect(0, 200, 640, 100);
+                    
+                    // Waves
+                    ctx.strokeStyle = '#2a5a7a';
+                    ctx.lineWidth = 2;
+                    for(let i = 0; i < 640; i += 40) {
+                        ctx.beginPath();
+                        ctx.arc(i, 200, 20, 0, Math.PI);
+                        ctx.stroke();
+                    }
+                    
+                    // Platform
+                    ctx.fillStyle = '#4a4a4a';
+                    ctx.fillRect(200, 240, 240, 60);
+                    ctx.fillRect(210, 200, 220, 40);
+                    
+                    // Water creatures visible
+                    ctx.fillStyle = '#ff6600';
+                    const time = Date.now() / 1000;
+                    const fishY = 250 + Math.sin(time * 2) * 20;
+                    ctx.beginPath();
+                    ctx.arc(100, fishY, 15, 0, Math.PI * 2);
+                    ctx.fill();
+                    
+                    ctx.fillStyle = '#00aaaa';
+                    ctx.beginPath();
+                    ctx.arc(500, 260 + Math.sin(time * 3) * 15, 20, 0, Math.PI * 2);
+                    ctx.fill();
+                    
+                    // Diving equipment
+                    ctx.fillStyle = '#6a6a6a';
+                    ctx.fillRect(350, 260, 30, 40);
+                    
+                    // Your ship on platform
+                    ctx.fillStyle = '#666';
+                    ctx.fillRect(250, 215, 50, 35);
+                },
+                hotspots: [
+                    {
+                        x: 250, y: 215, width: 50, height: 35,
+                        name: 'Your Ship',
+                        description: 'Return to ship',
+                        action: () => changeRoom('explorationBay')
+                    },
+                    {
+                        x: 350, y: 260, width: 30, height: 40,
+                        name: 'Diving Gear',
+                        description: 'Underwater equipment',
+                        action: () => {
+                            startDialog({
+                                npc: 'Diving Equipment',
+                                text: 'Dive into the ocean depths?',
+                                options: [
+                                    {
+                                        text: 'Dive underwater',
+                                        action: () => {
+                                            updateDescription('🌊 Diving into the ocean...');
+                                            setTimeout(() => changeRoom('underwater'), 1000);
+                                            endDialog();
+                                        }
+                                    },
+                                    {
+                                        text: 'Not yet',
+                                        action: () => endDialog()
+                                    }
+                                ]
+                            });
+                        }
+                    },
+                    {
+                        x: 85, y: 235, width: 30, height: 30,
+                        name: 'Orange Fish',
+                        description: 'Swimming fish',
+                        action: () => updateDescription('🐟 Beautiful tropical fish swim by.')
+                    }
+                ],
+                walkableArea: { minY: 280 }
+            },
+            
+            underwater: {
+                name: 'Underwater Depths',
+                background: function(ctx) {
+                    // Dark water
+                    const gradient = ctx.createLinearGradient(0, 0, 0, 400);
+                    gradient.addColorStop(0, '#1a4a6a');
+                    gradient.addColorStop(1, '#0a2a4a');
+                    ctx.fillStyle = gradient;
+                    ctx.fillRect(0, 0, 640, 400);
+                    
+                    // Bubbles
+                    ctx.fillStyle = 'rgba(255,255,255,0.3)';
+                    for(let i = 0; i < 20; i++) {
+                        const y = (Date.now() / 50 + i * 20) % 400;
+                        ctx.beginPath();
+                        ctx.arc(50 + i * 30, y, 5, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+                    
+                    // Ocean floor
+                    ctx.fillStyle = '#2a3a2a';
+                    ctx.fillRect(0, 300, 640, 100);
+                    
+                    // Coral
+                    ctx.fillStyle = '#ff00ff';
+                    ctx.fillRect(100, 280, 15, 20);
+                    ctx.fillRect(150, 270, 20, 30);
+                    ctx.fillStyle = '#00ffff';
+                    ctx.fillRect(400, 275, 18, 25);
+                    
+                    // Treasure chest
+                    ctx.fillStyle = '#8b7355';
+                    ctx.fillRect(300, 280, 50, 20);
+                    ctx.fillStyle = '#ffcc00';
+                    ctx.fillRect(305, 285, 40, 5);
+                    
+                    // Large sea creature
+                    ctx.fillStyle = '#4a6a8a';
+                    ctx.fillRect(450, 200, 60, 40);
+                    ctx.beginPath();
+                    ctx.arc(485, 215, 15, 0, Math.PI * 2);
+                    ctx.fill();
+                    
+                    // Return portal (glowing)
+                    ctx.fillStyle = '#00ff00';
+                    ctx.shadowBlur = 20;
+                    ctx.shadowColor = '#00ff00';
+                    ctx.beginPath();
+                    ctx.arc(80, 250, 30, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.shadowBlur = 0;
+                },
+                hotspots: [
+                    {
+                        x: 50, y: 220, width: 60, height: 60,
+                        name: 'Surface Portal',
+                        description: 'Return to surface',
+                        action: () => {
+                            updateDescription('🌊 Swimming back to surface...');
+                            setTimeout(() => changeRoom('aquaria'), 1000);
+                        }
+                    },
+                    {
+                        x: 300, y: 280, width: 50, height: 20,
+                        name: 'Treasure Chest',
+                        description: 'Ancient underwater chest',
+                        action: () => {
+                            if (!game.flags.underwaterTreasure) {
+                                game.flags.underwaterTreasure = true;
+                                addItem('Pearls');
+                                addItem('Ancient Coin');
+                                game.credits += 400;
+                                updateDescription('💰 Found underwater treasure! Pearls and coins! +400 credits!');
+                            } else {
+                                updateDescription('Chest is empty.');
+                            }
+                        }
+                    },
+                    {
+                        x: 440, y: 200, width: 80, height: 50,
+                        name: 'Sea Leviathan',
+                        description: 'Massive sea creature',
+                        action: () => {
+                            startDialog({
+                                npc: 'Sea Leviathan',
+                                text: '*Deep rumbling sounds* The ancient creature examines you curiously...',
+                                options: [
+                                    {
+                                        text: 'Offer fish (Food Cargo)',
+                                        action: () => {
+                                            if (hasItem('Food Cargo')) {
+                                                removeItem('Food Cargo');
+                                                game.credits += 500;
+                                                addItem('Leviathan Scale');
+                                                updateDescription('🐋 The leviathan is pleased! Gives you a magical scale! +500 credits!');
+                                            } else {
+                                                updateDescription('You have no food to offer.');
+                                            }
+                                            endDialog();
+                                        }
+                                    },
+                                    {
+                                        text: 'Swim away carefully',
+                                        action: () => {
+                                            updateDescription('The creature watches you leave peacefully.');
+                                            endDialog();
+                                        }
+                                    }
+                                ]
+                            });
+                        }
+                    }
+                ],
+                walkableArea: { minY: 280 }
+            },
+            
+            xenon7: {
+                name: 'Xenon-7 - Alien Colony',
+                background: function(ctx) {
+                    // Purple alien sky
+                    ctx.fillStyle = '#4a1a4a';
+                    ctx.fillRect(0, 0, 640, 300);
+                    
+                    // Three moons
+                    ctx.fillStyle = '#aaaaaa';
+                    ctx.beginPath();
+                    ctx.arc(100, 80, 25, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.beginPath();
+                    ctx.arc(200, 100, 20, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.beginPath();
+                    ctx.arc(300, 70, 30, 0, Math.PI * 2);
+                    ctx.fill();
+                    
+                    // Ground
+                    ctx.fillStyle = '#6a4a6a';
+                    ctx.fillRect(0, 300, 640, 100);
+                    
+                    // Alien buildings
+                    ctx.fillStyle = '#8a6aaa';
+                    ctx.beginPath();
+                    ctx.moveTo(150, 300);
+                    ctx.lineTo(200, 200);
+                    ctx.lineTo(250, 300);
+                    ctx.fill();
+                    
+                    ctx.beginPath();
+                    ctx.moveTo(350, 300);
+                    ctx.lineTo(400, 180);
+                    ctx.lineTo(450, 300);
+                    ctx.fill();
+                    
+                    // Alien NPCs
+                    drawNPC(280, 260, '#00ff00');
+                    drawNPC(380, 260, '#ff00ff');
+                    
+                    // Strange monument
+                    ctx.fillStyle = '#00ffaa';
+                    ctx.shadowBlur = 15;
+                    ctx.shadowColor = '#00ffaa';
+                    ctx.beginPath();
+                    ctx.moveTo(520, 280);
+                    ctx.lineTo(540, 240);
+                    ctx.lineTo(560, 280);
+                    ctx.fill();
+                    ctx.shadowBlur = 0;
+                    
+                    // Your ship
+                    ctx.fillStyle = '#666';
+                    ctx.fillRect(50, 250, 60, 50);
+                },
+                hotspots: [
+                    {
+                        x: 50, y: 250, width: 60, height: 50,
+                        name: 'Your Ship',
+                        description: 'Return to ship',
+                        action: () => changeRoom('explorationBay')
+                    },
+                    {
+                        x: 270, y: 260, width: 40, height: 60,
+                        name: 'Alien Scientist',
+                        description: 'Friendly alien researcher',
+                        action: () => {
+                            startDialog({
+                                npc: 'Alien Scientist Zyx',
+                                text: 'Greetings, space traveler! We study the cosmos. Would you trade knowledge?',
+                                options: [
+                                    {
+                                        text: 'Share survey data',
+                                        action: () => {
+                                            if (hasItem('Survey Data')) {
+                                                removeItem('Survey Data');
+                                                game.credits += 350;
+                                                addItem('Alien Technology');
+                                                updateDescription('🔬 Knowledge exchanged! +350 credits and alien tech!');
+                                            } else {
+                                                updateDescription('You have no data to share.');
+                                            }
+                                            endDialog();
+                                        }
+                                    },
+                                    {
+                                        text: 'Just visiting',
+                                        action: () => {
+                                            updateDescription('The alien nods in understanding.');
+                                            endDialog();
+                                        }
+                                    }
+                                ]
+                            });
+                        }
+                    },
+                    {
+                        x: 370, y: 260, width: 40, height: 60,
+                        name: 'Alien Trader',
+                        description: 'Exotic goods merchant',
+                        action: () => {
+                            startDialog({
+                                npc: 'Merchant Qral',
+                                text: 'I have rare items from across the galaxy! Everything has a price!',
+                                options: [
+                                    {
+                                        text: 'Buy Xenon Crystal (200cr)',
+                                        action: () => {
+                                            if (game.credits >= 200) {
+                                                game.credits -= 200;
+                                                addItem('Xenon Crystal');
+                                                updateDescription('Purchased rare xenon crystal!');
+                                            } else {
+                                                updateDescription('Not enough credits!');
+                                            }
+                                            endDialog();
+                                        }
+                                    },
+                                    {
+                                        text: 'Sell items for 150cr each',
+                                        action: () => {
+                                            if (game.inventory.length > 0) {
+                                                const item = game.inventory[0];
+                                                removeItem(item);
+                                                game.credits += 150;
+                                                updateDescription(`Sold ${item} for 150 credits!`);
+                                            } else {
+                                                updateDescription('No items to sell!');
+                                            }
+                                            endDialog();
+                                        }
+                                    },
+                                    {
+                                        text: 'Leave',
+                                        action: () => endDialog()
+                                    }
+                                ]
+                            });
+                        }
+                    },
+                    {
+                        x: 510, y: 240, width: 60, height: 60,
+                        name: 'Ancient Monument',
+                        description: 'Mysterious glowing obelisk',
+                        action: () => {
+                            if (!game.flags.monumentActivated) {
+                                game.flags.monumentActivated = true;
+                                game.credits += 300;
+                                updateDescription('✨ The monument pulses with energy! +300 credits blessing!');
+                            } else {
+                                updateDescription('The monument hums peacefully.');
+                            }
+                        }
+                    }
+                ],
+                walkableArea: { minY: 280 }
+            },
+            
+            iceStation: {
+                name: 'Frost Peak Research Station',
+                background: function(ctx) {
+                    // Snowy sky
+                    ctx.fillStyle = '#ddeeff';
+                    ctx.fillRect(0, 0, 640, 300);
+                    
+                    // Falling snow
+                    ctx.fillStyle = '#fff';
+                    for(let i = 0; i < 50; i++) {
+                        const x = (Date.now() / 50 + i * 15) % 640;
+                        const y = (Date.now() / 30 + i * 20) % 300;
+                        ctx.fillRect(x, y, 3, 3);
+                    }
+                    
+                    // Snow ground
+                    ctx.fillStyle = '#eeeeee';
+                    ctx.fillRect(0, 300, 640, 100);
+                    
+                    // Ice mountains
+                    ctx.fillStyle = '#cceeff';
+                    ctx.beginPath();
+                    ctx.moveTo(100, 300);
+                    ctx.lineTo(150, 180);
+                    ctx.lineTo(200, 300);
+                    ctx.fill();
+                    
+                    ctx.beginPath();
+                    ctx.moveTo(400, 300);
+                    ctx.lineTo(460, 160);
+                    ctx.lineTo(520, 300);
+                    ctx.fill();
+                    
+                    // Research station
+                    ctx.fillStyle = '#4a6a8a';
+                    ctx.fillRect(280, 220, 120, 80);
+                    ctx.fillStyle = '#6a8aaa';
+                    ctx.beginPath();
+                    ctx.arc(340, 220, 60, Math.PI, 0);
+                    ctx.fill();
+                    
+                    // Snowman
+                    ctx.fillStyle = '#fff';
+                    ctx.beginPath();
+                    ctx.arc(550, 270, 20, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.beginPath();
+                    ctx.arc(550, 240, 15, 0, Math.PI * 2);
+                    ctx.fill();
+                    
+                    // Your ship
+                    ctx.fillStyle = '#666';
+                    ctx.fillRect(50, 260, 60, 40);
+                },
+                hotspots: [
+                    {
+                        x: 50, y: 260, width: 60, height: 40,
+                        name: 'Your Ship',
+                        description: 'Return to ship',
+                        action: () => changeRoom('explorationBay')
+                    },
+                    {
+                        x: 280, y: 220, width: 120, height: 80,
+                        name: 'Research Station',
+                        description: 'Climate research facility',
+                        action: () => {
+                            startDialog({
+                                npc: 'Station Chief',
+                                text: 'Welcome! We study extreme weather. Our findings are valuable!',
+                                options: [
+                                    {
+                                        text: 'Request research data (250cr)',
+                                        action: () => {
+                                            if (game.credits >= 250) {
+                                                game.credits -= 250;
+                                                addItem('Climate Data');
+                                                updateDescription('📊 Purchased valuable climate research!');
+                                            } else {
+                                                updateDescription('Need 250 credits!');
+                                            }
+                                            endDialog();
+                                        }
+                                    },
+                                    {
+                                        text: 'Offer help',
+                                        action: () => {
+                                            game.credits += 200;
+                                            updateDescription('🧊 Helped with research! +200 credits!');
+                                            endDialog();
+                                        }
+                                    },
+                                    {
+                                        text: 'Leave',
+                                        action: () => endDialog()
+                                    }
+                                ]
+                            });
+                        }
+                    },
+                    {
+                        x: 530, y: 225, width: 40, height: 75,
+                        name: 'Snowman',
+                        description: 'Cheerful snowman',
+                        action: () => {
+                            if (!game.flags.snowmanSecret) {
+                                game.flags.snowmanSecret = true;
+                                addItem('Frozen Gem');
+                                game.credits += 150;
+                                updateDescription('☃️ Found a frozen gem hidden in the snowman! +150 credits!');
+                            } else {
+                                updateDescription('Just a friendly snowman!');
+                            }
+                        }
+                    }
+                ],
+                walkableArea: { minY: 280 }
+            },
+            
+            aridus: {
+                name: 'Aridus - Desert Planet',
+                background: function(ctx) {
+                    // Orange sky
+                    ctx.fillStyle = '#ffaa44';
+                    ctx.fillRect(0, 0, 640, 300);
+                    
+                    // Hot sun
+                    ctx.fillStyle = '#ffff00';
+                    ctx.shadowBlur = 30;
+                    ctx.shadowColor = '#ffff00';
+                    ctx.beginPath();
+                    ctx.arc(500, 80, 40, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.shadowBlur = 0;
+                    
+                    // Sand dunes
+                    ctx.fillStyle = '#dda840';
+                    ctx.beginPath();
+                    ctx.moveTo(0, 280);
+                    for(let i = 0; i < 640; i += 80) {
+                        ctx.quadraticCurveTo(i + 40, 240, i + 80, 280);
+                    }
+                    ctx.lineTo(640, 400);
+                    ctx.lineTo(0, 400);
+                    ctx.fill();
+                    
+                    ctx.fillStyle = '#cc9830';
+                    ctx.fillRect(0, 300, 640, 100);
+                    
+                    // Desert ruins
+                    ctx.fillStyle = '#8b7355';
+                    ctx.fillRect(180, 240, 80, 60);
+                    ctx.fillRect(200, 220, 40, 20);
+                    
+                    // Cactus-like plants
+                    ctx.fillStyle = '#2a6a2a';
+                    ctx.fillRect(400, 260, 15, 40);
+                    ctx.fillRect(390, 275, 35, 10);
+                    
+                    // Desert creature
+                    ctx.fillStyle = '#aa8844';
+                    ctx.fillRect(320, 270, 25, 30);
+                    ctx.fillStyle = '#000';
+                    ctx.fillRect(325, 275, 5, 5);
+                    ctx.fillRect(335, 275, 5, 5);
+                    
+                    // Your ship
+                    ctx.fillStyle = '#666';
+                    ctx.fillRect(50, 260, 60, 40);
+                },
+                hotspots: [
+                    {
+                        x: 50, y: 260, width: 60, height: 40,
+                        name: 'Your Ship',
+                        description: 'Return to ship',
+                        action: () => changeRoom('explorationBay')
+                    },
+                    {
+                        x: 180, y: 240, width: 80, height: 60,
+                        name: 'Ancient Ruins',
+                        description: 'Crumbling desert temple',
+                        action: () => {
+                            if (!game.flags.ruinsExplored) {
+                                game.flags.ruinsExplored = true;
+                                addItem('Ancient Tablet');
+                                game.credits += 280;
+                                updateDescription('📜 Discovered ancient tablet in ruins! +280 credits!');
+                            } else {
+                                updateDescription('The ruins have been thoroughly explored.');
+                            }
+                        }
+                    },
+                    {
+                        x: 310, y: 270, width: 40, height: 40,
+                        name: 'Desert Lizard',
+                        description: 'Large desert reptile',
+                        action: () => {
+                            startDialog({
+                                npc: 'Desert Lizard',
+                                text: '*Hissss* The creature eyes you warily. It seems territorial but not aggressive.',
+                                options: [
+                                    {
+                                        text: 'Observe peacefully',
+                                        action: () => {
+                                            game.credits += 50;
+                                            updateDescription('🦎 The lizard tolerates your presence. You learn about desert survival! +50 credits');
+                                            endDialog();
+                                        }
+                                    },
+                                    {
+                                        text: 'Back away',
+                                        action: () => {
+                                            updateDescription('You respect its territory.');
+                                            endDialog();
+                                        }
+                                    }
+                                ]
+                            });
+                        }
+                    },
+                    {
+                        x: 385, y: 260, width: 50, height: 50,
+                        name: 'Desert Plant',
+                        description: 'Hardy desert flora',
+                        action: () => {
+                            if (!game.flags.desertPlant) {
+                                game.flags.desertPlant = true;
+                                addItem('Desert Nectar');
+                                game.credits += 90;
+                                updateDescription('🌵 Extracted valuable nectar! +90 credits!');
+                            } else {
+                                updateDescription('Plant has no more nectar.');
+                            }
+                        }
+                    }
+                ],
+                walkableArea: { minY: 280 }
+            }
+        };
+        
+        function checkHotspots(x, y) {
+            const room = rooms[game.currentRoom];
+            for (let hotspot of room.hotspots) {
+                if (x >= hotspot.x && x <= hotspot.x + hotspot.width &&
+                    y >= hotspot.y && y <= hotspot.y + hotspot.height) {
+                    return hotspot;
+                }
+            }
+            return null;
+        }
+        
+        function gameLoop() {
+            const room = rooms[game.currentRoom];
+            
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            room.background(ctx);
+            
+            updatePlayer();
+            drawPlayer();
+            
+            drawDialog();
+            
+            // UI
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 360, 640, 40);
+            ctx.fillStyle = '#00ff00';
+            ctx.font = '12px monospace';
+            ctx.fillText(game.description, 10, 375);
+            
+            if (game.hoveredObject) {
+                ctx.fillText(`> ${game.hoveredObject.name}`, 10, 390);
+            }
+            
+            if (game.inventory.length > 0) {
+                ctx.fillText('Items: ' + game.inventory.slice(0, 3).join(', '), 10, 355);
+            }
+            
+            ctx.fillStyle = '#ffff00';
+            ctx.fillText(`Credits: ${game.credits}`, 500, 355);
+            
+            requestAnimationFrame(gameLoop);
+        }
+        
+        canvas.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            
+            game.hoveredObject = checkHotspots(x, y);
+            canvas.style.cursor = game.hoveredObject ? 'pointer' : 'crosshair';
+        });
+        
+        canvas.addEventListener('click', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            
+            const hotspot = checkHotspots(x, y);
+            
+            if (hotspot && hotspot.action) {
+                hotspot.action();
+            } else {
+                const room = rooms[game.currentRoom];
+                const targetY = Math.max(y - game.player.height, room.walkableArea.minY);
+                game.player.targetX = x - game.player.width / 2;
+                game.player.targetY = targetY;
+                game.player.moving = true;
+            }
+        });
+        
+        document.addEventListener('keydown', (e) => {
+            if (game.dialogMode && game.currentDialog) {
+                const choice = parseInt(e.key) - 1;
+                if (choice >= 0 && choice < game.currentDialog.options.length) {
+                    game.currentDialog.options[choice].action();
+                }
+            }
+        });
+        
+        updateDescription('Welcome Captain! EARN CREDITS: Casino, Mining, Racing, Missions, Bounties, Trading, Banking!');
+        gameLoop();
+    </script>
+</body>
+</html>

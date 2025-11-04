@@ -1,0 +1,719 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quantum Quasar Quadrant</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            background: #1a0033;
+            font-family: 'Courier New', monospace;
+            color: #00ffff;
+        }
+        
+        h1 {
+            margin: 0 0 10px 0;
+            text-shadow: 0 0 10px #ff00ff, 0 0 20px #00ffff;
+            font-size: 2em;
+        }
+        
+        #gameCanvas {
+            border: 4px solid #00ffff;
+            box-shadow: 0 0 20px #ff00ff, 0 0 40px #00ffff;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+        }
+        
+        .controls {
+            margin-top: 20px;
+            text-align: center;
+            background: rgba(0, 255, 255, 0.1);
+            padding: 15px;
+            border-radius: 10px;
+            border: 2px solid #00ffff;
+        }
+        
+        .controls p {
+            margin: 5px 0;
+            font-size: 1.1em;
+        }
+        
+        .score {
+            font-size: 1.3em;
+            margin-top: 10px;
+            text-shadow: 0 0 5px #ffff00;
+        }
+    </style>
+</head>
+<body>
+    <h1>🚀 QUANTUM QUASAR QUADRANT 🌟</h1>
+    <canvas id="gameCanvas" width="800" height="600"></canvas>
+    <div class="controls">
+        <p>🎮 <strong>CONTROLS:</strong> Arrow Keys or WASD to Move | SPACE or UP to Jump</p>
+        <p>⭐ Stars: +10 | 🦀 Crabs: +25 | 👾 Monster (3 hits): +50 each hit, +100 total defeat!</p>
+        <p>💥 Avoid: Crab sides (-5) | Grenades (-15) | Lasers (-10) | Monster sides (-20)</p>
+        <p class="score">💫 Score: <span id="score">0</span></p>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreElement = document.getElementById('score');
+
+        // Game state
+        const game = {
+            score: 0,
+            running: true,
+            backgroundOffset: 0,
+            stars: []
+        };
+
+        // Load images
+        const background = new Image();
+        background.src = 'quantum-quasar-quadrant_background.png';
+        
+        const spacemanImg = new Image();
+        spacemanImg.src = 'quantum-quasar-quadrant_spaceman.png';
+        
+        const shipImg = new Image();
+        shipImg.src = 'quantum-quasar-quadrant_ship.png';
+        
+        const shipFlashImg = new Image();
+        shipFlashImg.src = 'quantum-quasar-quadrant_ship_flashing_lights.png';
+        
+        const crabImg = new Image();
+        crabImg.src = 'quantum-quasar-quadrant_crab.png';
+        
+        const crabStep1Img = new Image();
+        crabStep1Img.src = 'quantum-quasar-quadrant_crab_step1.png';
+        
+        const monsterImg1 = new Image();
+        monsterImg1.src = 'quantum-quasar-quadrant_monster_1.png';
+        
+        const monsterImg2 = new Image();
+        monsterImg2.src = 'quantum-quasar-quadrant_monster_2.png';
+
+        // Ground level (relative to canvas) - defined early since it's needed by createCrab
+        const groundY = canvas.height - 150;
+
+        // Player object
+        const player = {
+            x: 100,
+            y: 400,
+            width: 40,
+            height: 60,
+            velocityX: 0,
+            velocityY: 0,
+            speed: 5,
+            jumpPower: 12,
+            gravity: 0.5,
+            onGround: false,
+            direction: 1 // 1 for right, -1 for left
+        };
+
+        // Crab enemies
+        const crabs = [];
+        
+        function createCrab() {
+            return {
+                x: canvas.width + Math.random() * 300,
+                y: groundY - 50,
+                width: 60,
+                height: 50,
+                speed: 1.5 + Math.random() * 1,
+                direction: -1,
+                animFrame: 0,
+                animTimer: 0
+            };
+        }
+
+        // Initialize crabs
+        for (let i = 0; i < 3; i++) {
+            crabs.push(createCrab());
+        }
+
+        // Flying ship
+        const ship = {
+            x: canvas.width / 2 - 75,
+            y: 80,
+            width: 150,
+            height: 80,
+            speed: 1.5,
+            flashTimer: 0,
+            showFlash: false,
+            hoverTimer: 0,
+            hoverDuration: 180, // frames to hover
+            shootTimer: 0,
+            laserTimer: 0,
+            shooting: false
+        };
+
+        // Grenades
+        const grenades = [];
+        
+        // Lasers
+        const lasers = [];
+        
+        // Giant Monster
+        const monster = {
+            x: canvas.width + 100,
+            y: groundY - 80,
+            width: 100,
+            height: 90,
+            speed: 0.8,
+            direction: -1,
+            animFrame: 0,
+            animTimer: 0,
+            health: 3
+        };
+
+        // Collectible stars
+        function createStar() {
+            return {
+                x: canvas.width + Math.random() * 200,
+                y: Math.random() * (canvas.height - 200) + 100,
+                size: 8,
+                collected: false,
+                pulse: 0
+            };
+        }
+
+        // Initialize stars
+        for (let i = 0; i < 3; i++) {
+            game.stars.push(createStar());
+        }
+
+        // Keyboard state
+        const keys = {};
+        
+        window.addEventListener('keydown', (e) => {
+            keys[e.key] = true;
+            
+            // Jump with Space or W or ArrowUp
+            if ((e.key === ' ' || e.key === 'w' || e.key === 'W' || e.key === 'ArrowUp') && player.onGround) {
+                player.velocityY = -player.jumpPower;
+                player.onGround = false;
+            }
+        });
+        
+        window.addEventListener('keyup', (e) => {
+            keys[e.key] = false;
+        });
+
+        // Helper function for laser collision
+        function pointToLineDistance(px, py, x1, y1, x2, y2) {
+            const A = px - x1;
+            const B = py - y1;
+            const C = x2 - x1;
+            const D = y2 - y1;
+            
+            const dot = A * C + B * D;
+            const lenSq = C * C + D * D;
+            let param = -1;
+            
+            if (lenSq !== 0) param = dot / lenSq;
+            
+            let xx, yy;
+            
+            if (param < 0) {
+                xx = x1;
+                yy = y1;
+            } else if (param > 1) {
+                xx = x2;
+                yy = y2;
+            } else {
+                xx = x1 + param * C;
+                yy = y1 + param * D;
+            }
+            
+            const dx = px - xx;
+            const dy = py - yy;
+            return Math.sqrt(dx * dx + dy * dy);
+        }
+
+        function update() {
+            if (!game.running) return;
+
+            // Horizontal movement
+            player.velocityX = 0;
+            
+            if (keys['ArrowLeft'] || keys['a'] || keys['A']) {
+                player.velocityX = -player.speed;
+                player.direction = -1;
+            }
+            if (keys['ArrowRight'] || keys['d'] || keys['D']) {
+                player.velocityX = player.speed;
+                player.direction = 1;
+            }
+
+            // Apply gravity
+            player.velocityY += player.gravity;
+
+            // Update position
+            player.x += player.velocityX;
+            player.y += player.velocityY;
+
+            // Ground collision
+            if (player.y + player.height >= groundY) {
+                player.y = groundY - player.height;
+                player.velocityY = 0;
+                player.onGround = true;
+            } else {
+                player.onGround = false;
+            }
+
+            // Keep player in bounds
+            if (player.x < 0) player.x = 0;
+            if (player.x + player.width > canvas.width) player.x = canvas.width - player.width;
+
+            // Scroll background slowly
+            game.backgroundOffset -= 0.5;
+            if (game.backgroundOffset < -canvas.width) {
+                game.backgroundOffset = 0;
+            }
+
+            // Update flying ship
+            ship.flashTimer++;
+            
+            // Toggle flash every 15 frames
+            if (ship.flashTimer % 15 === 0) {
+                ship.showFlash = !ship.showFlash;
+            }
+            
+            // Shoot grenades continuously
+            ship.shootTimer++;
+            if (ship.shootTimer > 50) { // Shoot every 50 frames
+                ship.shootTimer = 0;
+                grenades.push({
+                    x: ship.x + ship.width / 2,
+                    y: ship.y + ship.height,
+                    velocityX: (player.x - ship.x) * 0.02, // Aim at player
+                    velocityY: 2,
+                    size: 8,
+                    trail: []
+                });
+            }
+            
+            // Shoot lasers
+            ship.laserTimer++;
+            if (ship.laserTimer > 75) { // Shoot laser every 75 frames
+                ship.laserTimer = 0;
+                const colors = ['#ff00ff', '#00ffff', '#ffff00', '#00ff00', '#ff0000'];
+                const randomColor = colors[Math.floor(Math.random() * colors.length)];
+                lasers.push({
+                    x: ship.x + ship.width / 2,
+                    y: ship.y + ship.height,
+                    targetX: player.x + player.width / 2,
+                    targetY: player.y + player.height / 2,
+                    color: randomColor,
+                    life: 30 // frames to live
+                });
+            }
+            
+            // Hovering and movement behavior
+            if (ship.hoverTimer < ship.hoverDuration) {
+                // Hovering phase
+                ship.hoverTimer++;
+                ship.y += Math.sin(ship.hoverTimer * 0.05) * 0.5; // Slight bobbing
+            } else {
+                // Moving phase
+                ship.x += ship.speed;
+                
+                // Reset when reaching end
+                if (ship.x > canvas.width + 200) {
+                    ship.x = -200;
+                    ship.y = 60 + Math.random() * 100;
+                    ship.hoverTimer = 0;
+                }
+            }
+
+            // Update grenades
+            grenades.forEach((grenade, index) => {
+                grenade.velocityY += 0.15; // Gravity
+                grenade.x += grenade.velocityX;
+                grenade.y += grenade.velocityY;
+                
+                // Add trail
+                grenade.trail.push({ x: grenade.x, y: grenade.y });
+                if (grenade.trail.length > 5) grenade.trail.shift();
+                
+                // Check collision with player
+                const dist = Math.sqrt(
+                    Math.pow(grenade.x - (player.x + player.width / 2), 2) +
+                    Math.pow(grenade.y - (player.y + player.height / 2), 2)
+                );
+                
+                if (dist < grenade.size + 20) {
+                    // Hit! Lose points and knockback
+                    if (game.score > 0) {
+                        game.score = Math.max(0, game.score - 15);
+                        scoreElement.textContent = game.score;
+                    }
+                    player.velocityY = -8;
+                    player.velocityX = (player.x < grenade.x) ? -6 : 6;
+                    grenades.splice(index, 1);
+                    return;
+                }
+                
+                // Remove if off screen or hit ground
+                if (grenade.y > groundY || grenade.x < -50 || grenade.x > canvas.width + 50) {
+                    grenades.splice(index, 1);
+                }
+            });
+
+            // Update lasers
+            lasers.forEach((laser, index) => {
+                laser.life--;
+                
+                // Check collision with player during laser's lifetime
+                if (laser.life > 25) { // Only damage in first few frames
+                    const distToLine = pointToLineDistance(
+                        player.x + player.width / 2,
+                        player.y + player.height / 2,
+                        laser.x, laser.y,
+                        laser.targetX, laser.targetY
+                    );
+                    
+                    if (distToLine < 15) {
+                        if (game.score > 0) {
+                            game.score = Math.max(0, game.score - 10);
+                            scoreElement.textContent = game.score;
+                        }
+                        player.velocityY = -6;
+                        laser.life = 0; // Remove laser after hit
+                    }
+                }
+                
+                // Remove if expired
+                if (laser.life <= 0) {
+                    lasers.splice(index, 1);
+                }
+            });
+
+            // Update monster
+            monster.x += monster.direction * monster.speed;
+            
+            // Update walk animation
+            monster.animTimer++;
+            if (monster.animTimer > 12) {
+                monster.animTimer = 0;
+                monster.animFrame = (monster.animFrame + 1) % 2;
+            }
+            
+            // Check collision with player
+            if (player.x < monster.x + monster.width &&
+                player.x + player.width > monster.x &&
+                player.y + player.height > monster.y &&
+                player.y + player.height < monster.y + 25 &&
+                player.velocityY > 0) {
+                // Player jumped on monster - damage it!
+                player.velocityY = -12;
+                monster.health--;
+                game.score += 50;
+                scoreElement.textContent = game.score;
+                
+                // Respawn if defeated
+                if (monster.health <= 0) {
+                    monster.x = canvas.width + 100;
+                    monster.health = 3;
+                    game.score += 50; // Bonus for defeating
+                    scoreElement.textContent = game.score;
+                }
+            } else if (player.x < monster.x + monster.width - 15 &&
+                       player.x + player.width > monster.x + 15 &&
+                       player.y < monster.y + monster.height - 15 &&
+                       player.y + player.height > monster.y + 15) {
+                // Player hit monster from side - major damage!
+                if (game.score > 0) {
+                    game.score = Math.max(0, game.score - 20);
+                    scoreElement.textContent = game.score;
+                }
+                // Big knockback
+                player.velocityX = (player.x < monster.x) ? -10 : 10;
+                player.velocityY = -8;
+            }
+            
+            // Respawn monster if it goes off screen
+            if (monster.x < -monster.width - 200) {
+                monster.x = canvas.width + 100;
+                monster.health = 3;
+            }
+
+            // Update crabs
+            crabs.forEach((crab, index) => {
+                crab.x += crab.direction * crab.speed;
+                
+                // Update walk animation
+                crab.animTimer++;
+                if (crab.animTimer > 10) {
+                    crab.animTimer = 0;
+                    crab.animFrame = (crab.animFrame + 1) % 2;
+                }
+                
+                // Check collision with player (only if player is landing on crab from above)
+                if (player.x < crab.x + crab.width &&
+                    player.x + player.width > crab.x &&
+                    player.y + player.height > crab.y &&
+                    player.y + player.height < crab.y + 20 &&
+                    player.velocityY > 0) {
+                    // Player jumped on crab - bounce!
+                    player.velocityY = -10;
+                    game.score += 25;
+                    scoreElement.textContent = game.score;
+                    
+                    // Respawn crab
+                    crabs[index] = createCrab();
+                } else if (player.x < crab.x + crab.width - 10 &&
+                           player.x + player.width > crab.x + 10 &&
+                           player.y < crab.y + crab.height - 10 &&
+                           player.y + player.height > crab.y + 10) {
+                    // Player hit crab from side - lose points and knockback
+                    if (game.score > 0) {
+                        game.score -= 5;
+                        scoreElement.textContent = game.score;
+                    }
+                    // Knockback
+                    player.velocityX = (player.x < crab.x) ? -8 : 8;
+                    player.velocityY = -5;
+                }
+                
+                // Respawn crab if it goes off screen
+                if (crab.x < -crab.width - 100) {
+                    crabs[index] = createCrab();
+                }
+            });
+
+            // Update and check stars
+            game.stars.forEach((star, index) => {
+                star.x -= 2;
+                star.pulse += 0.1;
+                
+                // Check collision with player
+                if (!star.collected &&
+                    player.x < star.x + star.size &&
+                    player.x + player.width > star.x &&
+                    player.y < star.y + star.size &&
+                    player.y + player.height > star.y) {
+                    star.collected = true;
+                    game.score += 10;
+                    scoreElement.textContent = game.score;
+                }
+
+                // Remove and respawn stars that go off screen
+                if (star.x < -star.size) {
+                    game.stars[index] = createStar();
+                }
+            });
+        }
+
+        function draw() {
+            // Clear canvas
+            ctx.fillStyle = '#1a0033';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Draw scrolling background (twice for seamless loop)
+            if (background.complete) {
+                ctx.drawImage(background, game.backgroundOffset, 0, canvas.width, canvas.height);
+                ctx.drawImage(background, game.backgroundOffset + canvas.width, 0, canvas.width, canvas.height);
+            }
+
+            // Draw flying ship with animated lights
+            if (ship.showFlash && shipFlashImg.complete) {
+                ctx.drawImage(shipFlashImg, ship.x, ship.y, ship.width, ship.height);
+            } else if (shipImg.complete) {
+                ctx.drawImage(shipImg, ship.x, ship.y, ship.width, ship.height);
+            }
+
+            // Draw lasers
+            lasers.forEach(laser => {
+                const alpha = laser.life / 30;
+                ctx.shadowBlur = 20;
+                ctx.shadowColor = laser.color;
+                ctx.strokeStyle = laser.color;
+                ctx.lineWidth = 4 * alpha;
+                ctx.globalAlpha = alpha;
+                
+                ctx.beginPath();
+                ctx.moveTo(laser.x, laser.y);
+                ctx.lineTo(laser.targetX, laser.targetY);
+                ctx.stroke();
+                
+                // Draw impact point
+                ctx.fillStyle = '#ffffff';
+                ctx.beginPath();
+                ctx.arc(laser.targetX, laser.targetY, 6 * alpha, 0, Math.PI * 2);
+                ctx.fill();
+                
+                ctx.globalAlpha = 1;
+                ctx.shadowBlur = 0;
+            });
+
+            // Draw ground overlay (semi-transparent)
+            ctx.fillStyle = 'rgba(100, 50, 150, 0.3)';
+            ctx.fillRect(0, groundY, canvas.width, canvas.height - groundY);
+
+            // Draw grenades
+            grenades.forEach(grenade => {
+                // Draw trail
+                ctx.shadowBlur = 10;
+                grenade.trail.forEach((pos, i) => {
+                    const alpha = (i + 1) / grenade.trail.length;
+                    ctx.fillStyle = `rgba(255, 100, 0, ${alpha * 0.6})`;
+                    ctx.beginPath();
+                    ctx.arc(pos.x, pos.y, grenade.size * alpha, 0, Math.PI * 2);
+                    ctx.fill();
+                });
+                
+                // Draw grenade
+                ctx.shadowColor = '#ff6600';
+                ctx.shadowBlur = 15;
+                ctx.fillStyle = '#ff3300';
+                ctx.beginPath();
+                ctx.arc(grenade.x, grenade.y, grenade.size, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Inner core
+                ctx.fillStyle = '#ffff00';
+                ctx.beginPath();
+                ctx.arc(grenade.x, grenade.y, grenade.size - 3, 0, Math.PI * 2);
+                ctx.fill();
+                
+                ctx.shadowBlur = 0;
+            });
+
+            // Draw crabs with walking animation
+            crabs.forEach(crab => {
+                const crabImage = crab.animFrame === 0 ? crabImg : crabStep1Img;
+                if (crabImage.complete) {
+                    ctx.drawImage(crabImage, crab.x, crab.y, crab.width, crab.height);
+                } else {
+                    // Fallback
+                    ctx.fillStyle = '#ff00ff';
+                    ctx.fillRect(crab.x, crab.y, crab.width, crab.height);
+                }
+            });
+
+            // Draw monster with walking animation
+            const monsterImage = monster.animFrame === 0 ? monsterImg1 : monsterImg2;
+            if (monsterImage.complete) {
+                ctx.drawImage(monsterImage, monster.x, monster.y, monster.width, monster.height);
+                
+                // Draw health bar above monster
+                const healthBarWidth = 60;
+                const healthBarHeight = 6;
+                const healthPercent = monster.health / 3;
+                
+                // Background
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+                ctx.fillRect(monster.x + 20, monster.y - 15, healthBarWidth, healthBarHeight);
+                
+                // Health
+                ctx.fillStyle = healthPercent > 0.5 ? '#00ff00' : (healthPercent > 0.25 ? '#ffff00' : '#ff0000');
+                ctx.fillRect(monster.x + 20, monster.y - 15, healthBarWidth * healthPercent, healthBarHeight);
+                
+                // Border
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 1;
+                ctx.strokeRect(monster.x + 20, monster.y - 15, healthBarWidth, healthBarHeight);
+            } else {
+                // Fallback
+                ctx.fillStyle = '#00ff00';
+                ctx.fillRect(monster.x, monster.y, monster.width, monster.height);
+            }
+
+            // Draw stars
+            game.stars.forEach(star => {
+                if (!star.collected) {
+                    const pulseSize = star.size + Math.sin(star.pulse) * 2;
+                    
+                    // Outer glow
+                    ctx.shadowBlur = 15;
+                    ctx.shadowColor = '#ffff00';
+                    ctx.fillStyle = '#ffff00';
+                    ctx.beginPath();
+                    ctx.arc(star.x, star.y, pulseSize, 0, Math.PI * 2);
+                    ctx.fill();
+                    
+                    // Inner star
+                    ctx.shadowBlur = 5;
+                    ctx.fillStyle = '#ffffff';
+                    ctx.beginPath();
+                    ctx.arc(star.x, star.y, pulseSize - 2, 0, Math.PI * 2);
+                    ctx.fill();
+                    
+                    ctx.shadowBlur = 0;
+                }
+            });
+
+            // Draw player
+            if (spacemanImg.complete) {
+                ctx.save();
+                
+                // Flip horizontally if facing left
+                if (player.direction === -1) {
+                    ctx.translate(player.x + player.width / 2, player.y + player.height / 2);
+                    ctx.scale(-1, 1);
+                    ctx.drawImage(spacemanImg, -player.width / 2, -player.height / 2, player.width, player.height);
+                } else {
+                    ctx.drawImage(spacemanImg, player.x, player.y, player.width, player.height);
+                }
+                
+                ctx.restore();
+            } else {
+                // Fallback if image not loaded
+                ctx.fillStyle = '#00ffff';
+                ctx.fillRect(player.x, player.y, player.width, player.height);
+            }
+
+            // Draw HUD
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+            ctx.fillRect(10, 10, 200, 30);
+            ctx.fillStyle = '#00ffff';
+            ctx.font = '20px "Courier New"';
+            ctx.fillText(`Stars: ${game.score / 10}`, 20, 33);
+        }
+
+        function gameLoop() {
+            update();
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Wait for images to load before starting
+        let imagesLoaded = 0;
+        const totalImages = 8;
+
+        function imageLoaded() {
+            imagesLoaded++;
+            if (imagesLoaded === totalImages) {
+                gameLoop();
+            }
+        }
+
+        background.onload = imageLoaded;
+        spacemanImg.onload = imageLoaded;
+        shipImg.onload = imageLoaded;
+        shipFlashImg.onload = imageLoaded;
+        crabImg.onload = imageLoaded;
+        crabStep1Img.onload = imageLoaded;
+        monsterImg1.onload = imageLoaded;
+        monsterImg2.onload = imageLoaded;
+
+        // If images fail to load, start anyway
+        setTimeout(() => {
+            if (imagesLoaded < totalImages) {
+                console.log('Starting game with', imagesLoaded, 'of', totalImages, 'images loaded');
+                gameLoop();
+            }
+        }, 2000);
+    </script>
+</body>
+</html>

@@ -296,6 +296,12 @@
             }
 
             draw(ctx) {
+                // Draw a simple circle to verify tank position
+                ctx.fillStyle = this.isPlayer ? '#00ff00' : '#ff0000';
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fill();
+
                 ctx.save();
                 ctx.translate(this.x, this.y);
                 ctx.rotate(this.angle);
@@ -545,6 +551,7 @@
 
             spawnWave(waveNumber) {
                 const enemyCount = 3 + waveNumber * 2;
+                console.log(`Spawning wave ${waveNumber} with ${enemyCount} enemies`);
                 
                 for (let i = 0; i < enemyCount; i++) {
                     const angle = (Math.PI * 2 * i) / enemyCount;
@@ -556,7 +563,9 @@
                     const enemyX = Math.max(50, Math.min(canvas.width - 50, x));
                     const enemyY = Math.max(50, Math.min(canvas.height - 50, y));
                     
-                    this.enemies.push(new Tank(enemyX, enemyY, '#8B2222', false));
+                    const enemy = new Tank(enemyX, enemyY, '#8B2222', false);
+                    this.enemies.push(enemy);
+                    console.log(`Spawned enemy at (${enemyX}, ${enemyY})`);
                 }
             }
 
@@ -713,12 +722,19 @@
                 ctx.fillStyle = 'rgba(15, 20, 25, 0.2)';
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-                // Draw game objects
+                // Draw game objects in order
                 this.powerUps.forEach(powerUp => powerUp.draw(ctx));
                 this.particles.forEach(particle => particle.draw(ctx));
                 this.bullets.forEach(bullet => bullet.draw(ctx));
                 this.enemies.forEach(enemy => enemy.draw(ctx));
                 this.player.draw(ctx);
+
+                // Debug info
+                ctx.fillStyle = '#ffffff';
+                ctx.font = '14px Arial';
+                ctx.fillText(`Player: (${Math.round(this.player.x)}, ${Math.round(this.player.y)})`, 10, canvas.height - 60);
+                ctx.fillText(`Enemies: ${this.enemies.length}`, 10, canvas.height - 40);
+                ctx.fillText(`Bullets: ${this.bullets.length}`, 10, canvas.height - 20);
             }
 
             gameLoop() {

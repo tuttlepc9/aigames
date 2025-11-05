@@ -1,0 +1,243 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+    color: #fff;
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+}
+
+.container {
+    max-width: 1200px;
+    width: 100%;
+}
+
+header {
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+h1 {
+    font-size: 2.5em;
+    color: #00d9ff;
+    text-shadow: 0 0 10px rgba(0, 217, 255, 0.5);
+    margin-bottom: 10px;
+}
+
+.subtitle {
+    color: #aaa;
+    font-size: 1.1em;
+}
+
+.game-area {
+    display: grid;
+    grid-template-columns: 300px 1fr;
+    gap: 20px;
+    align-items: start;
+}
+
+.controls {
+    background: rgba(255, 255, 255, 0.05);
+    border: 2px solid rgba(0, 217, 255, 0.3);
+    border-radius: 10px;
+    padding: 20px;
+    backdrop-filter: blur(10px);
+}
+
+.control-section {
+    margin-bottom: 20px;
+}
+
+.control-section label {
+    display: block;
+    margin-bottom: 10px;
+    font-weight: bold;
+    color: #00d9ff;
+}
+
+.color-palette {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+}
+
+.color-btn {
+    width: 100%;
+    aspect-ratio: 1;
+    border: 3px solid transparent;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+}
+
+.color-btn:hover {
+    transform: scale(1.1);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+}
+
+.color-btn.active {
+    border-color: #fff;
+    box-shadow: 0 0 15px currentColor;
+}
+
+input[type="range"] {
+    width: 60%;
+    margin-right: 10px;
+}
+
+.button-group {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+.btn {
+    padding: 12px 24px;
+    border: none;
+    border-radius: 8px;
+    font-size: 1em;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.3s;
+    text-transform: uppercase;
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, #00d9ff 0%, #0099cc 100%);
+    color: #fff;
+    box-shadow: 0 4px 15px rgba(0, 217, 255, 0.4);
+}
+
+.btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0, 217, 255, 0.6);
+}
+
+.btn-primary:disabled {
+    background: #555;
+    cursor: not-allowed;
+    box-shadow: none;
+}
+
+.btn-secondary {
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+}
+
+.btn-secondary:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.game-status {
+    margin-top: 20px;
+    padding: 15px;
+    background: rgba(0, 217, 255, 0.1);
+    border-left: 4px solid #00d9ff;
+    border-radius: 5px;
+    font-size: 0.95em;
+    line-height: 1.5;
+}
+
+#gameCanvas {
+    width: 100%;
+    max-width: 800px;
+    height: 600px;
+    background: #0a0a0a;
+    border: 3px solid rgba(0, 217, 255, 0.5);
+    border-radius: 10px;
+    cursor: crosshair;
+    box-shadow: 0 0 30px rgba(0, 217, 255, 0.3);
+}
+
+#gameCanvas.battle-mode {
+    cursor: default;
+}
+
+.scoreboard {
+    grid-column: 1 / -1;
+    background: rgba(255, 255, 255, 0.05);
+    border: 2px solid rgba(0, 217, 255, 0.3);
+    border-radius: 10px;
+    padding: 20px;
+    margin-top: 20px;
+}
+
+.scoreboard h3 {
+    color: #00d9ff;
+    margin-bottom: 15px;
+    font-size: 1.5em;
+}
+
+#scoreList {
+    list-style: none;
+    counter-reset: place;
+}
+
+#scoreList li {
+    counter-increment: place;
+    padding: 12px;
+    margin-bottom: 10px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 5px;
+    display: flex;
+    align-items: center;
+    font-size: 1.1em;
+}
+
+#scoreList li::before {
+    content: counter(place);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    background: rgba(0, 217, 255, 0.3);
+    border-radius: 50%;
+    margin-right: 15px;
+    font-weight: bold;
+}
+
+#scoreList li:first-child::before {
+    background: gold;
+    color: #000;
+}
+
+#scoreList li:nth-child(2)::before {
+    background: silver;
+    color: #000;
+}
+
+#scoreList li:nth-child(3)::before {
+    background: #cd7f32;
+    color: #000;
+}
+
+.color-indicator {
+    width: 40px;
+    height: 40px;
+    border-radius: 5px;
+    margin-left: 15px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+}
+
+@media (max-width: 1024px) {
+    .game-area {
+        grid-template-columns: 1fr;
+    }
+
+    #gameCanvas {
+        height: 400px;
+    }
+}

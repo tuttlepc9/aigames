@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pixel Painter Defense - Color Battle</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Pixel Painter Defense</h1>
+            <p class="subtitle">Draw your armies and watch them battle!</p>
+        </header>
+
+        <div class="game-area">
+            <div class="controls">
+                <div class="control-section">
+                    <label>Select Color/Team:</label>
+                    <div class="color-palette">
+                        <button class="color-btn active" data-color="#FF0000" style="background-color: #FF0000;" title="Red Team"></button>
+                        <button class="color-btn" data-color="#0000FF" style="background-color: #0000FF;" title="Blue Team"></button>
+                        <button class="color-btn" data-color="#00FF00" style="background-color: #00FF00;" title="Green Team"></button>
+                        <button class="color-btn" data-color="#FFFF00" style="background-color: #FFFF00;" title="Yellow Team"></button>
+                        <button class="color-btn" data-color="#FF00FF" style="background-color: #FF00FF;" title="Magenta Team"></button>
+                        <button class="color-btn" data-color="#00FFFF" style="background-color: #00FFFF;" title="Cyan Team"></button>
+                        <button class="color-btn" data-color="#FFA500" style="background-color: #FFA500;" title="Orange Team"></button>
+                        <button class="color-btn" data-color="#800080" style="background-color: #800080;" title="Purple Team"></button>
+                    </div>
+                </div>
+
+                <div class="control-section">
+                    <label>Brush Size:</label>
+                    <input type="range" id="brushSize" min="5" max="50" value="20">
+                    <span id="brushSizeValue">20</span>px
+                </div>
+
+                <div class="control-section">
+                    <label>Unit Density:</label>
+                    <input type="range" id="unitDensity" min="1" max="10" value="5">
+                    <span id="unitDensityValue">5</span>
+                </div>
+
+                <div class="button-group">
+                    <button id="clearBtn" class="btn btn-secondary">Clear Canvas</button>
+                    <button id="startBattleBtn" class="btn btn-primary">Start Battle!</button>
+                    <button id="resetBtn" class="btn btn-secondary" style="display: none;">New Game</button>
+                </div>
+
+                <div id="gameStatus" class="game-status">
+                    Draw your armies with different colors!
+                </div>
+            </div>
+
+            <canvas id="gameCanvas" width="800" height="600"></canvas>
+
+            <div id="scoreboard" class="scoreboard" style="display: none;">
+                <h3>Battle Results</h3>
+                <ol id="scoreList"></ol>
+            </div>
+        </div>
+    </div>
+
+    <script src="game.js"></script>
+</body>
+</html>
